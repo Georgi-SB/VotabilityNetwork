@@ -1,0 +1,341 @@
+
+
+\documentclass[10pt,a4paper]{article}
+
+
+\usepackage{latexsym}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+%\usepackage{bbm}                    % mathbbm is nicer than mathbb
+\usepackage[T1]{fontenc}
+%\usepackage{mathptm}
+\usepackage{times}
+%\usepackage{pdfsync}
+\usepackage{listings}
+
+
+% XMP
+%\usepackage{xmpincl}
+%\includexmp{CC_Attribution-NonCommercial-NoDerivs}
+
+%\fontfamily{ptm}\selectfont
+
+
+
+
+% Headers
+\usepackage{fancyhdr}
+\lhead{Backprop}\rhead{}
+% Tiny footer
+%\lfoot{\tiny \copyright 2005 
+% \\ \url{http://}}
+%\rfoot{\tiny \cpfversion}
+
+\usepackage{longtable}
+
+
+\newif\ifpdf
+\ifx\pdfoutput\undefined
+\pdffalse % we are not running PDFLaTeX
+\else
+\pdfoutput=1 % we are running PDFLaTeX
+\pdftrue \fi \ifpdf
+\usepackage[pdftex]{graphicx}
+\else
+\usepackage{graphicx}
+\fi
+
+% \usepackage{picins}
+
+\textwidth = 5.2 in \textheight = 8.7 in
+%\oddsidemargin = 0.0 in
+%\evensidemargin = 0.0 in
+\topmargin = 0.0 cm
+%\headheight = 0.0 in
+%\headsep = 0.0 in
+%\parskip = 0.2in
+%\parindent = 0.0in
+
+% Counter
+\newcounter{cpf_counter} \setcounter{cpf_counter}{0}
+
+% Definition
+\newenvironment{definition}[1]{ \refstepcounter{cpf_counter}
+  \par \medskip
+  \noindent\textbf{Definition \arabic{cpf_counter} (#1):
+  }
+  }
+  {
+  \par\medskip}
+%
+% Lemma
+\newenvironment{lemma}[1]{ \refstepcounter{cpf_counter}
+  \par \medskip
+  \noindent\textbf{Lemma \arabic{cpf_counter} (#1):
+  }
+  }
+  {
+  \par\medskip}
+%
+% Proof
+\newenvironment{proof}{
+  \par \medskip \noindent
+  \textbf{Proof:}
+  }{\par\medskip}
+%
+
+\newcommand{\diag}{\mathrm{diag}}
+\newcommand{\note}[1]{\textit{#1}}
+
+\title{Vectorized backprop}
+%\author{
+%Author Name \\ {\small auhtor.name@email.address.com} \and Author2\
+%Name2 \\ {\small email@service.de} }
+
+%%% END OF PREAMBLE   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% BEGIN OF DOCUMENT %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\begin{document}
+
+\pagestyle{fancy}       % of course
+
+% For Listings
+\lstset{language=java}
+\lstset{backgroundcolor=\color[gray]{0.95},rulecolor=\color[gray]{0.5}}
+\lstset{linewidth=\textwidth} \lstset{xleftmargin=0.02\textwidth}
+\lstset{xrightmargin=0.02\textwidth}
+\lstset{basicstyle=\tiny\ttfamily} \lstset{commentstyle=\textit,
+stringstyle=\upshape,showspaces=false} \lstset{tabsize=4}
+\lstset{frame=trbl}
+
+
+\ifpdf \DeclareGraphicsExtensions{.pdf,.jpg, .png} \else
+\DeclareGraphicsExtensions{.eps, .jpg} \fi
+
+\maketitle
+
+\medskip
+\medskip
+
+
+
+
+
+%\medskip
+%\medskip
+%\medskip
+%\medskip
+
+
+%\vfill
+
+%{\small Java\texttrademark\ is a registered trademark of Sun Microsystems, Inc.}
+
+%\newpage
+\tableofcontents
+
+
+\vfill
+
+\newpage
+\section{Notations}
+\label{sec:notations}
+
+
+\begin{enumerate}
+	\item $n_x$ - dimensionality of input data 
+	\item superscript $[l]$ denotes $l$-th layer (input layer is $[0]$, output layer - $N$)
+	\item superscript $(i)$ denotes $i$-th example
+	\item $n^{[l]}$ - nb of neurons in the $l$-th layer,  $n^{[0]}=n_x$
+	\item $m$ - batch size 
+	\item $X$ - $(n_x,m)$-matrix of input data. each row is a single training example
+	\item $Z^{[l]} = (z^{[l](i)}_k)_{i,k}$: dimension - $(n^{[l]}, m)$ (different examples are stacked as columns). This  is the matrix of inputs of the $l$-th layer.  $z^{[l](i)}_k$ is the input of the $k$-th neuron in the $l$-th layer for the $i$-th training example
+	\item $A^{[l]} = (a^{[l](i)}_k)_{i,k}$: dimension - $(n^{[l]}, m)$ (different examples are stacked as columns). This  the matrix of output activations of the $l$-th layer.  $a^{[l](i)}_k$ is the output of the $k$-th neuron in the $l$-th layer for the $i$-th training example
+	\item $W^{[l]}$: dimension  - $(n^{[l]}, n^{[l-1]})$-matrix.  The weights between the $l-1$-st and the $l$-th layers. $W^{[l]}_{(i,j)}$ is the weight of the arc from the $j$-th neuron in the $l-1$-st layer to the $i$-the neuron in the $l$-th layer
+	\item $N$ - output layer. 
+	\item $L$ - loss function,  $L^{(i)}$ is the  loss function for i-th example
+	\item 	$J = \frac{1}{m} \sum_{i=1}^{m} L^{(i)} $ - batch loss function 
+	\item $\bar L $ - $(1, m)$ vector of the $ L^{(i)}$ (again different example are stacked as columns)
+	\item $\delta^{[l]}= dZ^{[l]} = \left[ d \bar L /dZ^{[l]}  \right]^T $. Dimension - $(n^{[l]},m)$ matrix. Partial derivative of the $L^{(i)}$'s wrt  the $[l]$-th layer inputs $ Z^{[l]}$. 
+	\item $ dA^{[l]} = \left[ d \bar L /dA^{[l]}  \right]^T $ - $(n^{[l]},m)$.  Dimension - $(n^{[l]},m)$. Partial derivative of the $L^{(i)}$'s wrt  the the $[l]$-th  layer outputs $ A^{[l]}$. 
+	\item $ db^{[l]} = \left[ d J /db^{[l]}  \right]^T $. Dimension  - $(n^{[l]},1)$ . Partial derivative of the batch loss wrt the biases. 
+	\item $ dW^{[l]} = \left[ d J /dW^{[l]}  \right] $. Dimension - $(n^{[l]},n^{[l-1]})$ . Partial derivative of the batch loss wrt the arc weights.
+	\item $g:R \to R$ - activation function
+\end{enumerate}
+
+
+\section{Loss and activation  functions}
+\label{sec:loss}
+Currently we will use the cross-entropy loss function:
+\[ L^{(i)} = -\sum_{k=1}^{n^{[N]}} y^{(i)}_k \log \hat{y}^{(i)}_k   \]
+
+In the binary case it simplifies to: 
+\[ L^{(i)} = - y^{(i)} \log \hat{y}^{(i)}  - (1-y^{(i)} ) \log (1-\hat{y}^{(i)} )    \]
+
+The total batch loss that is optimized is:
+\[  J = \frac{1}{m} =\sum_{i=1}^{m} L^{(i)}     \]
+
+Sigmoid function:
+\begin{enumerate}
+\item Sigmoid: 
+\[\sigma(z)=\frac{1}{1+\exp(-z)}\,,\,\,\,\sigma'(z)=\sigma(z)(1-\sigma(z)) \]
+\item $\tanh$ 
+\[\tanh(z)=\frac{\exp(z)-\exp(-z)}{\exp(z)+\exp(-z)}\,,\,\,\,\tanh'(z)=1-\tanh^2(z) \]
+\item ReLU
+\[r(z)=\max(0, z)\, ,\,\,\, r'(z)=I_{[0, \infty)}(z) \]
+\item leaky ReLU
+\[ r(z)= \max(\epsilon z, z) \, ,\,\,\, r'(z)=I_{[0, \infty)}(z) + \epsilon I_{( -\infty, 0)}(z)  \]
+\end{enumerate}
+
+\section{Vectorized forward pass}
+\label{sec:for}
+The calculation is as follows:
+ 
+Start:  $X=A^{[0]}$
+
+Recursion:  
+
+1. $Z^{[l]} = W^{[l]} A^{[l-1]} + b^{[l]} $  in dimensions:   $(n^{[l]},m) = (n^{[l]},n^{[l-1]}) (n^{[l-1]},m) + (n^{[l]},m)$ where $ b^{[l]}$ is broadcasted from $(n^{[l]},1)$ to  $(n^{[l]},m)$ 
+
+2. $A^{[l]} = g(Z^{[l]})$ where $g$ is applied component-wise
+ 
+
+
+
+\section{Vectorized backward pass}
+\label{sec:back}
+Remark: $\frac{d Z^{[l+1]} }{ d A^{[l]}}$ is technically a $(n^{[l+1]}\cdot m, n^{[l]}\cdot m)$ with
+\[ \frac{d Z^{[l+1](k)_i} }{ d A^{[l](s)_j}}= W^{[l+1]}(i,j) \delta_{ks} \]
+so effectively we can keep only the diagonal $k=s$ elements and rearrange it in a $(n^{[l+1]} , n^{[l]} )$ matrix:
+\[ \frac{d Z^{[l+1]} }{ d A^{[l]}}(i,j) := W^{[l]}(i,j)  \]
+
+
+1. Derivative of the vectorized/stacked  single losses $\bar L$ wrt to output activation $A^{[N]}$: Dimension - $(n^{[N]}, m) $   (often $(1, m) $)
+For the binary cross entropy loss: 
+\[(d\bar L / d A^{[N]})^T_{(i,j)} =  dL^{(j)}/dA^{[N](j)}_i = -\frac{y^{(j) }}{a^{[N](j)}} + \frac{1-y^{(j) }}{1-a^{[N](j)}}  \]
+
+2.  Derivative of the vectorized/stacked  single losses $\bar L$ wrt $Z^{[l]}$: Notation - $\delta^{[l]}$ : dimension - $(n^{[l]}, m) $   
+\[\delta^{[l]} = \left (\frac{d\bar L }{ d Z^{[l]}} \right)^T \]
+The chain rule:
+\[   \frac{d\bar L }{ d Z^{[l]}} = \frac{d\bar L }{ d Z^{[l+1]}} \frac{d Z^{[l+1]} }{ d A^{[l]}}\frac{d A^{[l]} }{ d Z^{[l]}}  \]
+and after transposing and reducing the last multiplication with a diagonal matrix to componentwise multiplication with a broadcasted  vector  we get 
+\[ \left (\frac{d\bar L }{ d Z^{[l]}} \right)^T   = \delta^{[l]}  =  (W^{[l+1]})^T \cdot \delta^{[l+1]}  \odot g'(Z^{[l]})   \]
+with dimensions 
+\[ (n^{[l]},m) = (n^{[l]},n^{[l+1]}) \cdot  (n^{[l+1]}, m) \odot (n^{[l]},m) \]
+
+3. Derivative of the vectorized/stacked  single losses $\bar L$   wrt $A^{[l]}$: Notation - $dA^{[l]} $: dimension - $(n^{[l]}, m) $   
+\[dA^{[l]} = \left (\frac{d\bar L }{ d A^{[l]}} \right)^T \]
+The chain rule:
+\[   \frac{d\bar L }{ d Z^{[l]}} = \frac{d\bar L }{ d A^{[l]}} \frac{d A^{[l]} }{  d Z^{[l]}} \]
+and after transposing and reducing the last multiplication with a diagonal matrix to componentwise multiplication with a broadcasted  vector  we get 
+\[ \delta^{[l]} = \left (\frac{d\bar L }{ d A^{[l]}} \right)^T \odot g'(Z^{[l]})  =  dA^{[l]} \odot g'(Z^{[l]})   \]
+with dimensions 
+\[ (n^{[l]},m) = (n^{[l]},m)  \odot (n^{[l]},m) \]
+
+4.  Derivative of the batch loss  $J$ wrt $b^{[l]}$: Notation - $db^{[l]} $:  dimension -  $(n^{[l]}, 1) $   
+\[db^{[l]} = \left (\frac{d J }{ d b^{[l]})} \right)^T \]
+The chain rule:
+\[   \frac{d J }{ d b^{[l]}} = \frac{d J }{ d Z^{[l]}} \frac{d Z^{[l]} }{  d b^{[l]}} \]
+and after transposing and noting that the last term is the identity matrix we get: 
+\[ db^{[l]} =  \frac{1}{m}\sum_{i=1}^{m}\delta^{[l](i)} = \frac{1}{m}\text{np.sum}(\delta^{[l]}, \text{axis=1, keepdim=True})    \]
+with dimensions 
+\[ (n^{[l]},1) = (n^{[l]},1)  + (n^{[l]},1) + \dots  \]
+
+5.   Derivative of the batch loss  $J$ wrt   $W^{[l]}$: Notation - $dW^{[l]} $:  Dimension - $(n^{[l]}, n^{[l-1]}) $   
+\[dW^{[l]} = \frac{d J }{ d W^{[l]}}  \]
+The chain rule:
+\[   \frac{d J }{ d W^{[l]}} = \frac{d J }{ d Z^{[l]}} \frac{d Z^{[l]} }{  d W^{[l]}} \]
+and hence: 
+\begin{align*}
+ (dW^{[l]})_{(i,j)} &=  \frac{1}{m} \sum_{k=1}^{m} \sum{s=1}^{n^{[l]}}  \frac{d L^{(k)} }{ d Z^{[l](k)}_s} \frac{ d Z^{[l](k)}_s }{ d W^{[l]}_{(i,j)}} \\
+& =  \frac{1}{m} \sum_{k=1}^{m} \sum_{s=1}^{n^{[l]}}  \frac{d L^{(k)} }{ d Z^{[l](k)}_s}        \delta_{s, i }a^{[l-1](k)}_j \\
+& = \frac{1}{m} \sum_{k=1}^{m} \delta^{[l](k)}_i  a^{[l-1](k)}_j = \frac{1}{m}( \delta^{[l]}   (A^{[l-1]})^T)_{i,j}
+\end{align*}
+that is 
+\[  dW^{[l]} =  \frac{1}{m} \delta^{[l]}   (A^{[l-1]})^T\]
+with dimensions 
+\[ (n^{[l]},n^{[l-1]})   = (n^{[l]},m)  \cdot (m,n^{[l-1]})  \]
+
+
+backprop:\\
+\begin{enumerate}
+\item  Compute $dA^{[N]}$ - transposed derivative of stacked loss wrt output layer. Dimension -  $(n^{[N]}, m)$\\
+
+\item Compute $dZ^{[N]}=dA^{[N]}\odot g'(Z^{[N]})$ - transposed derivative of stacked loss wrt input of the last layer layer. Dimension -  $(n^{[N]}, m)$\\
+
+\item Recursion1: $dZ^{[l]}= (W^{[l+1]})^T dZ^{[l+1]} \odot g'(Z^{[l]})$.  Dimension -  $(n^{[l]}, m)$\\
+
+\item Produce layer $[l]$ derivatives wrt to the batch loss $J$:\\
+
+\item $db^{[l]} =   \frac{1}{m}\text{np.sum}(dZ^{[l]}, \text{axis=1, keepdim=True})$.   Dimension -  $(n^{[l]}, 1)$\\
+
+\item $  dW^{[l]} = \frac{1}{m} dZ^{[l]}  (A^{[l-1]})^T$.  Dimension -  $(n^{[l]}, m) \cdot (m,n^{[l-1]}) =(n^{[l]}, n^{[l-1]})$\\
+\end{enumerate}
+
+  
+
+\section{Alternative vectorized backward pass}
+\label{sec:back1}
+This is based on the following slightly different but equivalent recursive calculation:
+1A. As before we have $ dZ^{[l]} =   dA^{[l]} \odot g'(Z^{[l]})   $
+
+2A.  Derivative of the vectorized/stacked  single losses $\bar L$ wrt $A^{[l]}$: Notation - $dA^{[l]}$ : dimension - $(n^{[l]}, m) $   
+\[dA^{[l]} = \left (\frac{d\bar L }{ d A^{[l]}} \right)^T \]
+The chain rule:
+\[   \frac{d\bar L }{ d A^{[l]}} = \frac{d\bar L }{ d Z^{[l+1]}} \frac{d Z^{[l+1]} }{ d A^{[l]}}  \]
+and after transposing  and recalling the remark in the beginning of the previos section stating that 
+\[ \frac{d Z^{[l+1]} }{ d A^{[l]}}(i,j) := W^{[l]}(i,j)  \] 
+we get 
+\[  dA^{[l]}  =  ( (W^{[l+1]})^T \cdot dZ^{[l+1]} )     \]
+with dimensions 
+\[ (n^{[l]},m) =  (n^{[l]},n^{[l+1]}) \cdot  (n^{[l+1]},m)  \]
+
+3A. Finally the expressions for $d W^{[l]} $ and $d b^{[l]}$ remain as in the previous section
+
+
+Using the above the algorithm for the backprop is: 
+
+backprop A:\\
+\begin{enumerate}
+\item Compute $dA^{[N]}$ - transposed derivative of stacked loss wrt output layer. Dimension -  $(n^{[N]}, m)$\\
+
+\item Compute $(dZ^{[N]})^T=dA^{[N]}\odot g'(Z^{[N]})$ - transposed derivative of stacked loss wrt input of the last layer layer. Dimension -  $(n^{[N]}, m)$\\
+
+\item Backwards recursion
+\begin{enumerate}
+\item  $  dA^{[l]}  =  ( (W^{[l+1]})^T \cdot dZ^{[l+1]} )   $.  Dimension -  $(n^{[l]}, m)$\\
+
+\item  $  dZ^{[l]} =   dA^{[l]} \odot g'(Z^{[l]})   $.  Dimension -  $(n^{[l]}, m)$\\
+ \end{enumerate} 
+\item Produce layer $[l]$ derivatives wrt to the batch loss $J$:\\
+\begin{enumerate}
+
+\item. $db^{[l]} =   \frac{1}{m}\text{np.sum}(dZ^{[l]}, \text{axis=1, keepdim=True})$.   Dimension -  $(n^{[l]}, 1)$\\
+
+\item $  dW^{[l]} = \frac{1}{m} dZ^{[l]}  (A^{[l-1]})^T$.  Dimension -  $(n^{[l]}, m) \cdot (m,n^{[l-1]}) =(n^{[l]}, n^{[l-1]})$\\
+  \end{enumerate} 
+ \end{enumerate} 
+
+ 
+
+
+%\newpage
+
+%\begin{thebibliography}{XXX}
+
+%\section*{Literature on Valuing Spread Options}
+
+%\bibitem{Brigo2001}
+%\textsc{Brigo, Damiano; Mercurio, Fabio}: Interest Rate Modelling Theory and Practice. 603-604, 921-924 (2006).
+
+%\bibitem{Pelsser2000}
+%\textsc{Pelssser, Antoon}: Efficient Methods for Valuing Interest Rate Derivatives. 151-152 (2000).
+
+
+
+%\end{thebibliography}
+
+
+\end{document}
+\end
