@@ -44,15 +44,12 @@ class NNetwork(object):
 
 
     def Fit_model(self, learning_rate = 0.0075, num_iterations = 3000, print_cost=True):#lr was 0.009
-        """
-        Implements the L-layer neural network
-    
-        Arguments:
+        """Implements the L-layer neural network
+            Arguments:
             learning_rate -- learning rate of the gradient descent update rule
             num_iterations -- number of iterations of the optimization loop
             print_cost -- if True, it prints the cost every 100 steps
-    
-        Returns:
+            Returns:
             parameters -- parameters learnt by the model. They can then be used to predict.
             """
 
@@ -96,7 +93,7 @@ class NNetwork(object):
    
     def initialize_parameters(self):
         """
-        Arguments:
+            Arguments:
             layer_dims -- a list containing the dimensions of each layer in the network
             
             Returns:
@@ -118,13 +115,13 @@ class NNetwork(object):
     
     def forward_pass(self, X):
         """
-        Implements the cross entropy cost function. Currently assumes output has dimension = 1
+            Implements the cross entropy cost function. Currently assumes output has dimension = 1
 
-        Arguments:
+            Arguments:
             AL -- probability vector corresponding to the label predictions, shape (1, number of examples)
             Y -- true "label" vector ( 0 or 1), shape (1, number of examples)
 
-        Returns:
+            Returns:
             cost -- cross-entropy cost
         """
         
@@ -146,13 +143,13 @@ class NNetwork(object):
    
     def compute_cost(self):
         """
-        Implements the cross entropy cost function. Currently assumes output has dimension = 1
+            Implements the cross entropy cost function. Currently assumes output has dimension = 1
 
-        Arguments:
+            Arguments:
             AL -- probability vector corresponding to the label predictions, shape (1, number of examples)
             Y -- true "label" vector ( 0 or 1), shape (1, number of examples)
 
-        Returns:
+            Returns:
             cost -- cross-entropy cost
         """
         m = self.Y.shape[1]
@@ -168,11 +165,11 @@ class NNetwork(object):
     
     def backward_pass(self):
         """
-        Implements the backward propagation 
+            Implements the backward propagation 
     
-        Arguments:
+            Arguments:
     
-        Returns:
+                Returns:
             grads -- A dictionary with the gradients
                  grads["dA" + str(l)] = ... 
                  grads["dW" + str(l)] = ...
@@ -200,14 +197,14 @@ class NNetwork(object):
 
     def linear_activation_backward(self, dA, l, activation):
         """
-        Implements the backward propagation for the LINEAR->ACTIVATION layer.
+            Implements the backward propagation for the LINEAR->ACTIVATION layer.
     
-        Arguments:
+            Arguments:
             dA -- post-activation gradient for current layer l 
             l -- layer 
             activation -- the activation to be used in this layer, stored as a text string: "sigmoid" or "relu"
     
-        Returns:
+            Returns:
             dA_prev -- Gradient of the cost with respect to the activation (of the previous layer l-1), same shape as A_prev
             dW -- Gradient of the cost with respect to W (current layer l), same shape as W
             db -- Gradient of the cost with respect to b (current layer l), same shape as b
@@ -224,13 +221,13 @@ class NNetwork(object):
     
     def linear_backward(self,dZ, l):
         """
-        Implement the linear portion of backward propagation for a single layer (layer l)
+            Implement the linear portion of backward propagation for a single layer (layer l)
 
-        Arguments:
+            Arguments:
             dZ -- Gradient of the cost with respect to the linear output (of current layer l)
             l -- layer, needed to get  (A_prev, W, b) coming from the forward propagation in the current layer
 
-        Returns:
+            Returns:
             dA_prev -- Gradient of the cost with respect to the activation (of the previous layer l-1), same shape as A_prev
             dW -- Gradient of the cost with respect to W (current layer l), same shape as W
             db -- Gradient of the cost with respect to b (current layer l), same shape as b
@@ -254,13 +251,13 @@ class NNetwork(object):
     
     def relu_backward(self,dA, l):
         """
-        Implements the backward propagation for a single RELU unit.
+            Implements the backward propagation for a single RELU unit.
 
-        Arguments:
+            Arguments:
             dA -- post-activation gradient, of any shape
             l -- layer index for the cache (activation input Zl is needed) for computing backward propagation efficiently
 
-        Returns:
+            Returns:
             dZ -- Gradient of the cost with respect to Z
         """
     
@@ -276,13 +273,13 @@ class NNetwork(object):
 
     def sigmoid_backward(self, dA, l):
         """
-        Implements the backward propagation for a single SIGMOID unit.
+            Implements the backward propagation for a single SIGMOID unit.
 
-        Arguments:
+            Arguments:
             dA -- post-activation gradient, of any shape
              l -- layer index for the cache (activation input Zl is needed) for computing backward propagation efficiently
 
-        Returns:
+            Returns:
             Z -- Gradient of the cost with respect to Z
         """
     
@@ -297,12 +294,12 @@ class NNetwork(object):
     
     def update_parameters(self,learning_rate):
         """
-        Update parameters using gradient descent
+            Update parameters using gradient descent
     
-        Arguments:
+            Arguments:
             learning rate -- 
     
-        Returns:
+            Returns:
             parameters -- python dictionary containing your updated parameters 
                   parameters["W" + str(l)] = ... 
                   parameters["b" + str(l)] = ...
@@ -319,9 +316,9 @@ class NNetwork(object):
 
     def predict(self, Xn, Yn):
         """
-        This function is used to predict the results of the  L-layer neural network.
+            This function is used to predict the results of the  L-layer neural network.
     
-        Arguments:
+            Arguments:
             X -- data set of examples you would like to label
             parameters -- parameters of the trained model
             
@@ -358,15 +355,15 @@ class NNetwork(object):
     
     def linear_activation_forward(self,A_prev, W, b, activation):
         """
-        Implement the forward propagation for the LINEAR->ACTIVATION layer
+            Implement the forward propagation for the LINEAR->ACTIVATION layer
         
-        Arguments:
+            Arguments:
             A_prev -- activations from previous layer (or input data): (size of previous layer, number of examples)
             W -- weights matrix: numpy array of shape (size of current layer, size of previous layer)
             b -- bias vector, numpy array of shape (size of the current layer, 1)
             activation -- the activation to be used in this layer, stored as a text string: "sigmoid" or "relu"
 
-        Returns:
+            Returns:
             A -- the output of the activation function, also called the post-activation value 
             Z -- the activation/layer input stored for computing the backward pass efficiently
              """
@@ -385,12 +382,12 @@ class NNetwork(object):
     
     def sigmoid(self,Z):
         """
-       Implements the sigmoid activation in numpy
+            Implements the sigmoid activation in numpy
     
-        Arguments:
+            Arguments:
             Z -- numpy array of any shape
     
-        Returns:
+            Returns:
             A -- output of sigmoid(z), same shape as Z
         """
         
@@ -400,12 +397,12 @@ class NNetwork(object):
 
     def relu(self,Z):
         """
-        Implement the RELU function.
+            Implement the RELU function.
 
-        Arguments:
+            Arguments:
             Z -- Output of the linear layer, of any shape
 
-        Returns:
+            Returns:
             A -- Post-activation parameter, of the same shape as Z
             """
             
@@ -415,12 +412,12 @@ class NNetwork(object):
     
     def l_relu(self,Z, eps=0.01):
         """
-        Implement the leaky RELU function.
+            Implement the leaky RELU function.
 
-        Arguments:
+            Arguments:
             Z -- Output of the linear layer, of any shape
 
-        Returns:
+            Returns:
             A -- Post-activation parameter, of the same shape as Z
             """
             
