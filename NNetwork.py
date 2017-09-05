@@ -30,6 +30,7 @@ class NNetwork(object):
         self.num_layers     = len(layer_dims)  #  number of layers in the network. input layer is included
         self.layer_dims     = layer_dims
         self.layer_types    = layer_types
+        assert len(layer_dims) == len(layer_types), "invalid layer specs!" 
         self.parameters     = self.initialize_parameters()
         self.caches         = {}    # keys: "Zl" and "Al" for the input and output activation
         self.caches['A0']   = X     # input layer 
@@ -42,7 +43,7 @@ class NNetwork(object):
         
 
 
-    def Fit_model(self, learning_rate = 0.0075, num_iterations = 3000, print_cost=False):#lr was 0.009
+    def Fit_model(self, learning_rate = 0.0075, num_iterations = 3000, print_cost=True):#lr was 0.009
         """
         Implements the L-layer neural network
     
@@ -69,7 +70,8 @@ class NNetwork(object):
             self.forward_pass(self.X)
             
             # Compute cost.
-            cost = self.compute_cost(AL, Y)
+            L=self.num_layers-1 # number of 
+            cost = self.compute_cost(self.caches["A"+str(L)], self.Y)
     
             # Backward propagation.
             self.backward_pass()
@@ -106,11 +108,11 @@ class NNetwork(object):
         parameters = {}
 
         for l in range(1, self.num_layers):
-            parameters['W' + str(l)] = np.random.randn(layer_dims[l], layer_dims[l-1]) / np.sqrt(layer_dims[l-1]) #*0.01
-            parameters['b' + str(l)] = np.zeros((layer_dims[l], 1))
+            self.parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) / np.sqrt(self.layer_dims[l-1]) #*0.01
+            self.parameters['b' + str(l)] = np.zeros((self.layer_dims[l], 1))
         
-            assert(parameters['W' + str(l)].shape == (layer_dims[l], layer_dims[l-1])), "Arc weight matrices does not match the NN architecture"
-            assert(parameters['b' + str(l)].shape == (layer_dims[l], 1)), "Bias vector sizes does not match the NN architecture"
+            assert(parameters['W' + str(l)].shape == (self.layer_dims[l], self.layer_dims[l-1])), "Arc weight matrices does not match the NN architecture"
+            assert(parameters['b' + str(l)].shape == (self.layer_dims[l], 1)), "Bias vector sizes does not match the NN architecture"
             
         return parameters
     
@@ -131,7 +133,7 @@ class NNetwork(object):
     
         for l in range(1, self.num_layers):
             A_prev = A 
-            A, Z = linear_activation_forward(A_prev, self.parameters['W' + str(l)], 
+            A, Z = self.linear_activation_forward(A_prev, self.parameters['W' + str(l)], 
                                                          self.parameters['b' + str(l)], 
                                                          activation = self.layer_types[l])
             if self.writeCaches:
@@ -180,7 +182,6 @@ class NNetwork(object):
         L = self.num_layers-1  # the number of hidden layers
         assert ('A'+str(L) in self.caches), "Fail: Backward propagation is possible only after forward propagation!" 
         AL = self.caches['A'+str(L)]
-        m = AL.shape[1]
         self.Y = self.Y.reshape(AL.shape) # after this line, Y is the same shape as AL
     
         # Initializing the backpropagation
@@ -189,7 +190,7 @@ class NNetwork(object):
     
         for l in reversed(range(L)):
             # lth layer:  gradients.
-            dA_prev_temp, dW_temp, db_temp = linear_activation_backward(grads["dA" + str(l + 1)], l, activation = layer_types[l])
+            dA_prev_temp, dW_temp, db_temp = self.linear_activation_backward(grads["dA" + str(l + 1)], l, activation = self.layer_types[l])
             grads["dA" + str(l)] = dA_prev_temp
             grads["dW" + str(l + 1)] = dW_temp
             grads["db" + str(l + 1)] = db_temp
@@ -213,11 +214,11 @@ class NNetwork(object):
             """
             
         if activation == "relu":
-            dZ = relu_backward(dA, l)
-            dA_prev, dW, db = linear_backward(dZ, l)
+            dZ = self.relu_backward(dA, l)
+            dA_prev, dW, db = self.linear_backward(dZ, l)
         elif activation == "sigmoid":
-            dZ = sigmoid_backward(dA, l)
-            dA_prev, dW, db = linear_backward(dZ, l)
+            dZ = self.sigmoid_backward(dA, l)
+            dA_prev, dW, db = self.linear_backward(dZ, l)
     
         return dA_prev, dW, db
     
@@ -234,7 +235,6 @@ class NNetwork(object):
             dW -- Gradient of the cost with respect to W (current layer l), same shape as W
             db -- Gradient of the cost with respect to b (current layer l), same shape as b
             """
-        A_prev, W, b = cache
         A_prev  = self.caches['A'+str(l-1)]
         W       = self.parameters['W'+str(l)]
         b       = self.parameters['b'+str(l)]
@@ -312,14 +312,14 @@ class NNetwork(object):
 
         # Update rule for each parameter. 
         for l in range(L):
-            self.parameters["W" + str(l+1)] = parameters["W" + str(l+1)] - learning_rate * grads["dW" + str(l+1)]
-            self.parameters["b" + str(l+1)] = parameters["b" + str(l+1)] - learning_rate * grads["db" + str(l+1)]
+            self.parameters["W" + str(l+1)] = self.parameters["W" + str(l+1)] - learning_rate * self.grads["dW" + str(l+1)]
+            self.parameters["b" + str(l+1)] = self.parameters["b" + str(l+1)] - learning_rate * self.grads["db" + str(l+1)]
         
         return self.parameters
 
-    def predict(self, Xn, parameters):
+    def predict(self, Xn, Yn):
         """
-        This function is used to predict the results of a  L-layer neural network.
+        This function is used to predict the results of the  L-layer neural network.
     
         Arguments:
             X -- data set of examples you would like to label
@@ -328,17 +328,16 @@ class NNetwork(object):
             Returns:
                 p -- predictions for the given dataset X
             """
-    
+        assert Xn.shape[1] == Yn.shape[1], "nb x-examples  does not match nb y examples"
         m = Xn.shape[1] # nb of examples
         assert Xn.shape[0]==self.X.shape[0], "data shape does not match input layer"
-        n = len(parameters) // 2 # number of layers in the neural network
         predict = np.zeros((1,m))
     
         # Forward propagation
         original_chaches_mode = self.writeCaches
         self.writeCaches = False
         probs = self.forward_pass(Xn)
-
+        self.writeCaches = original_chaches_mode
     
         # convert probas to 0/1 predictions
         predict[probs<=0.5]=0.0
@@ -351,13 +350,13 @@ class NNetwork(object):
         #        p[0,i] = 0
     
         #print results
-        print ("predictions/true labels: " + str(predict)+" "+str(y))
-        print("Accuracy: "  + str(np.sum((p == y)/m)))
+        print ("predictions/true labels: " + str(predict)+" "+str(self.Y))
+        print("Accuracy: "  + str(np.sum((predict == self.Y)/m)))
         
         return predict
 
     
-    def linear_activation_forward(A_prev, W, b, activation):
+    def linear_activation_forward(self,A_prev, W, b, activation):
         """
         Implement the forward propagation for the LINEAR->ACTIVATION layer
         
@@ -373,18 +372,19 @@ class NNetwork(object):
              """
         assert (activation == "sigmoid" or activation=="relu") , "Invalid activation string"
         
-        Z = W.dot(A) + b # np.dot(W,A)+b
+        Z = W.dot(A_prev) + b # np.dot(W,A)+b
         if activation == "sigmoid":
-            A = sigmoid(Z)
+            A = self.sigmoid(Z)
         elif activation == "relu":
-            A = relu(Z)
+            A = self.relu(Z)
     
         assert (A.shape == (W.shape[0], A_prev.shape[1]))
         assert (Z.shape == (W.shape[0], A_prev.shape[1]))
         return A, Z
-       
-   def sigmoid(Z):
-       """
+    
+    
+    def sigmoid(self,Z):
+        """
        Implements the sigmoid activation in numpy
     
         Arguments:
@@ -398,7 +398,7 @@ class NNetwork(object):
         # assert(A.shape == Z.shape)
         return A
 
-    def relu(Z):
+    def relu(self,Z):
         """
         Implement the RELU function.
 
@@ -407,59 +407,23 @@ class NNetwork(object):
 
         Returns:
             A -- Post-activation parameter, of the same shape as Z
-            cache -- a python dictionary containing "A" ; stored for computing the backward pass efficiently
             """
-    
+            
         A = np.maximum(0,Z)
         # assert(A.shape == Z.shape)
         return A
+    
+    def l_relu(self,Z, eps=0.01):
+        """
+        Implement the leaky RELU function.
 
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-        
-class TestNNetwork(object):
-     def __init__(self, sizes, layer_types):
-        """import data and prepare training"""
-        self.train_set_x_orig, self.train_set_y_orig, self.test_set_x_orig, 
-        self.test_set_y_orig, self.classes = self.load_data()
-        
-        
-        
-        
-        
-    def load_data():
-        """load cat vs no cat testing data
-        
         Arguments:
+            Z -- Output of the linear layer, of any shape
+
         Returns:
-            trainX, trainY, testX, testY
+            A -- Post-activation parameter, of the same shape as Z
             """
-        train_dataset = h5py.File('datasets/train_catvnoncat.h5', "r")
-        train_set_x_orig = np.array(train_dataset["train_set_x"][:]) #  train set features
-        train_set_y_orig = np.array(train_dataset["train_set_y"][:]) #  train set labels
-
-        test_dataset = h5py.File('datasets/test_catvnoncat.h5', "r")
-        test_set_x_orig = np.array(test_dataset["test_set_x"][:]) #  test set features
-        test_set_y_orig = np.array(test_dataset["test_set_y"][:]) #  test set labels
-
-        classes = np.array(test_dataset["list_classes"][:]) # the list of classes
-    
-        train_set_y_orig = train_set_y_orig.reshape((1, train_set_y_orig.shape[0]))
-        test_set_y_orig = test_set_y_orig.reshape((1, test_set_y_orig.shape[0]))
-    
-        return train_set_x_orig, train_set_y_orig, test_set_x_orig, test_set_y_orig, classes
+            
+        A = np.maximum(eps*Z,Z)
+        # assert(A.shape == Z.shape)
+        return A
