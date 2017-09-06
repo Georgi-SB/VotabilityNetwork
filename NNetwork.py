@@ -43,7 +43,7 @@ class NNetwork(object):
         
 
 
-    def Fit_model(self, learning_rate = 0.0075, num_iterations = 3000, print_cost=True):#lr was 0.009
+    def fit_model(self, learning_rate = 0.0075, num_iterations = 3000, print_cost=True):#lr was 0.009
         """Implements the L-layer neural network
             Arguments:
             learning_rate -- learning rate of the gradient descent update rule
@@ -71,7 +71,7 @@ class NNetwork(object):
             cost = self.compute_cost(self.caches["A"+str(L)], self.Y)
     
             # Backward propagation.
-            self.backward_pass()
+            self.grads = self.backward_pass()
 
             # Update parameters.
             self.update_parameters(learning_rate)
@@ -105,8 +105,8 @@ class NNetwork(object):
         parameters = {}
 
         for l in range(1, self.num_layers):
-            self.parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) / np.sqrt(self.layer_dims[l-1]) #*0.01
-            self.parameters['b' + str(l)] = np.zeros((self.layer_dims[l], 1))
+            parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) / np.sqrt(self.layer_dims[l-1]) #*0.01
+            parameters['b' + str(l)] = np.zeros((self.layer_dims[l], 1))
         
             assert(parameters['W' + str(l)].shape == (self.layer_dims[l], self.layer_dims[l-1])), "Arc weight matrices does not match the NN architecture"
             assert(parameters['b' + str(l)].shape == (self.layer_dims[l], 1)), "Bias vector sizes does not match the NN architecture"
@@ -125,7 +125,7 @@ class NNetwork(object):
             cost -- cross-entropy cost
         """
         
-        self.caches = []
+        # self.caches = {}
         A = X
     
         for l in range(1, self.num_layers):
@@ -141,7 +141,7 @@ class NNetwork(object):
         return A 
         
    
-    def compute_cost(self):
+    def compute_cost(self, model_output, y):
         """
             Implements the cross entropy cost function. Currently assumes output has dimension = 1
 
@@ -152,11 +152,12 @@ class NNetwork(object):
             Returns:
             cost -- cross-entropy cost
         """
-        m = self.Y.shape[1]
-        L = self.num_layers-1  # the number of hidden layers
-        assert ('A'+str(L) in self.caches), "Cost is not defined as model ouput has not been calculated!" 
+        m = y.shape[1]
+        assert model_output.shape == y.shape, "dimensions of model output and true labels do not match"
+        # L = self.num_layers-1  # the number of hidden layers
+        # assert ('A'+str(L) in self.caches), "Cost is not defined as model ouput has not been calculated!" 
         # Compute loss from AL and Y.
-        cost = (1./m) * (-np.dot(self.Y,np.log(self.caches['A'+str(L)]).T) - np.dot(1-self.Y, np.log(1-self.caches['A'+str(L)]).T))
+        cost = (1./m) * (-np.dot(y,np.log(model_output.T)) - np.dot(1-y, np.log(1-model_output.T)) )
     
         cost = np.squeeze(cost)      # To make sure your cost's shape is what we expect (e.g. this turns [[17]] into 17).
         assert(cost.shape == ())
@@ -182,12 +183,12 @@ class NNetwork(object):
         self.Y = self.Y.reshape(AL.shape) # after this line, Y is the same shape as AL
     
         # Initializing the backpropagation
-        self.grads["dA" + str(L)] = - (np.divide(self.Y, AL) - np.divide(1 - self.Y, 1 - AL))
+        grads["dA" + str(L)] = - (np.divide(self.Y, AL) - np.divide(1 - self.Y, 1 - AL))
         # self.grads["dA" + str(L-1)], grads["dW" + str(L)], grads["db" + str(L)] = linear_activation_backward(dAL, L, activation = layer_types[L-1])
     
         for l in reversed(range(L)):
             # lth layer:  gradients.
-            dA_prev_temp, dW_temp, db_temp = self.linear_activation_backward(grads["dA" + str(l + 1)], l, activation = self.layer_types[l])
+            dA_prev_temp, dW_temp, db_temp = self.linear_activation_backward(grads["dA" + str(l + 1)], l+1, activation = self.layer_types[l])
             grads["dA" + str(l)] = dA_prev_temp
             grads["dW" + str(l + 1)] = dW_temp
             grads["db" + str(l + 1)] = db_temp
