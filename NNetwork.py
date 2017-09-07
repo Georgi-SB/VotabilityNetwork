@@ -31,7 +31,7 @@ class NNetwork(object):
         self.layer_dims     = layer_dims
         self.layer_types    = layer_types
         assert len(layer_dims) == len(layer_types), "invalid layer specs!" 
-        self.parameters     = self.initialize_parameters()
+        self.parameters     = {} # self.initialize_parameters()
         self.caches         = {}    # keys: "Zl" and "Al" for the input and output activation
         self.caches['A0']   = X     # input layer 
         self.grads          = {}    # keeps the calculated gradients of the cost wrt weights. keys "dWl", "dbl"
@@ -52,7 +52,7 @@ class NNetwork(object):
             Returns:
             parameters -- parameters learnt by the model. They can then be used to predict.
             """
-
+        tic=time.process_time()
         np.random.seed(1)
         self.parameters     = self.initialize_parameters()
         # keep track of cost
@@ -73,8 +73,9 @@ class NNetwork(object):
             # Backward propagation.
             self.grads = self.backward_pass()
 
+
             # Update parameters.
-            self.update_parameters(learning_rate)
+            self.update_parameters(self.grads, learning_rate)
                 
             # Print the cost every 100 training example
             if print_cost and i % 100 == 0:
@@ -88,8 +89,9 @@ class NNetwork(object):
         plt.xlabel('iterations (per tens)')
         plt.title("Learning rate =" + str(learning_rate))
         plt.show()
-    
-        return self.parameters, self.costs
+        toc=time.process_time()
+        print("Network trained in " + str(1000*(toc - tic)) + "ms")
+        return self.parameters, costs
    
     def initialize_parameters(self):
         """
@@ -137,7 +139,7 @@ class NNetwork(object):
                 self.caches['A'+str(l)]= A
                 self.caches['Z'+str(l)]= Z
     
-        assert(A.shape == self.Y.shape), "Non matching output"  
+        # assert(A.shape == self.Y.shape), "Non matching output"
         return A 
         
    
@@ -188,7 +190,7 @@ class NNetwork(object):
     
         for l in reversed(range(L)):
             # lth layer:  gradients.
-            dA_prev_temp, dW_temp, db_temp = self.linear_activation_backward(grads["dA" + str(l + 1)], l+1, activation = self.layer_types[l])
+            dA_prev_temp, dW_temp, db_temp = self.linear_activation_backward(grads["dA" + str(l + 1)], l+1, activation = self.layer_types[l+1])
             grads["dA" + str(l)] = dA_prev_temp
             grads["dW" + str(l + 1)] = dW_temp
             grads["db" + str(l + 1)] = db_temp
@@ -293,7 +295,7 @@ class NNetwork(object):
     
         return dZ
     
-    def update_parameters(self,learning_rate):
+    def update_parameters(self,gradients, learning_rate):
         """
             Update parameters using gradient descent
     
@@ -310,8 +312,8 @@ class NNetwork(object):
 
         # Update rule for each parameter. 
         for l in range(L):
-            self.parameters["W" + str(l+1)] = self.parameters["W" + str(l+1)] - learning_rate * self.grads["dW" + str(l+1)]
-            self.parameters["b" + str(l+1)] = self.parameters["b" + str(l+1)] - learning_rate * self.grads["db" + str(l+1)]
+            self.parameters["W" + str(l+1)] = self.parameters["W" + str(l+1)] - learning_rate * gradients["dW" + str(l+1)]
+            self.parameters["b" + str(l+1)] = self.parameters["b" + str(l+1)] - learning_rate * gradients["db" + str(l+1)]
         
         return self.parameters
 
@@ -348,8 +350,8 @@ class NNetwork(object):
         #        p[0,i] = 0
     
         #print results
-        print ("predictions/true labels: " + str(predict)+" "+str(self.Y))
-        print("Accuracy: "  + str(np.sum((predict == self.Y)/m)))
+        print ("predictions/true labels: " + str(predict)+" "+str(Yn))
+        print("Accuracy: "  + str(np.sum((predict == Yn)/m)))
         
         return predict
 
