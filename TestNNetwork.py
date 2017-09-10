@@ -74,6 +74,14 @@ class TestNNetwork(object):
     
         return train_x, train_y, test_x, test_y, classes
 
+#test_object = TestNNetwork([20, 7, 5, 1], ["l_relu","l_relu","l_relu","sigmoid"], learning_rate = 0.0075, num_iterations = 3000, print_cost=True)
+
 test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075, num_iterations = 3000, print_cost=True)
+
+#test_object = TestNNetwork([20, 7, 5, 1], ["sigmoid","sigmoid","sigmoid","sigmoid"], learning_rate = 0.0075, num_iterations = 3000, print_cost=True)
+
+#test_object = TestNNetwork([20, 7, 5, 1], ["tanh","tanh","tanh","sigmoid"], learning_rate = 0.0075, num_iterations = 3000, print_cost=True)
+
+
 
 test_object.run_test()

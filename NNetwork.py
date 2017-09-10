@@ -40,6 +40,16 @@ class NNetwork(object):
         self.x_size         = X.shape[0] # dimension of input data
         self.m              = X.shape[1] # size of training data set
         self.writeCaches    = True
+        self.l_relu_epsilon = 0.01
+        self.run_grad_check = False
+        self.use_dropout    = True
+        self.keep_probs     = []
+        self.l2_reg         = False
+        self.l2_reg_par     = 1.
+        self.mini_batch     = False
+        self.batch_size     = X.shape[1]
+        if self.mini_batch:
+            self.batch_size = 100
         
 
 
@@ -67,7 +77,7 @@ class NNetwork(object):
             self.forward_pass(self.X)
             
             # Compute cost.
-            L=self.num_layers-1 # number of 
+            L = self.num_layers-1 # number of
             cost = self.compute_cost(self.caches["A"+str(L)], self.Y)
     
             # Backward propagation.
@@ -129,7 +139,7 @@ class NNetwork(object):
         
         # self.caches = {}
         A = X
-    
+
         for l in range(1, self.num_layers):
             A_prev = A 
             A, Z = self.linear_activation_forward(A_prev, self.parameters['W' + str(l)], 
@@ -212,13 +222,16 @@ class NNetwork(object):
             dW -- Gradient of the cost with respect to W (current layer l), same shape as W
             db -- Gradient of the cost with respect to b (current layer l), same shape as b
             """
-            
+
         if activation == "relu":
             dZ = self.relu_backward(dA, l)
-            dA_prev, dW, db = self.linear_backward(dZ, l)
         elif activation == "sigmoid":
             dZ = self.sigmoid_backward(dA, l)
-            dA_prev, dW, db = self.linear_backward(dZ, l)
+        elif activation == "l_relu":
+            dZ = self.l_relu_backward(dA, l)
+        elif activation == "tanh":
+            dZ = self.tanh_backward(dA, l)
+        dA_prev, dW, db = self.linear_backward(dZ, l)
     
         return dA_prev, dW, db
     
@@ -242,6 +255,8 @@ class NNetwork(object):
         m = A_prev.shape[1]
 
         dW = 1./m * np.dot(dZ,A_prev.T)
+        # if self.l2_reg:
+        #    dW = dW + W * self.l2_reg_par/m
         db = 1./m * np.sum(dZ, axis = 1, keepdims = True)
         dA_prev = np.dot(W.T,dZ)
     
@@ -265,13 +280,36 @@ class NNetwork(object):
         """
     
         Z = self.caches['Z'+str(l)]
-        dZ = np.array(dA, copy=True) # just converting dz to a correct object.
+        dZ = np.array(dA, copy=True)  # just converting dz to a correct object.
     
-        # When z <= 0, you should set dz to 0 as well. 
+        # When z <= 0,   set dz to 0 as well.
         dZ[Z <= 0] = 0
     
         assert (dZ.shape == Z.shape)
     
+        return dZ
+
+    def l_relu_backward(self, dA, l, eps=0.01):
+        """
+            Implements the backward propagation for a single leaky RELU unit.
+
+            Arguments:
+            dA -- post-activation gradient, of any shape
+            l -- layer index for the cache (activation input Zl is needed) for computing backward propagation efficiently
+
+            Returns:
+            dZ -- Gradient of the cost with respect to Z
+        """
+        eps = self.l_relu_epsilon
+        Z = self.caches['Z' + str(l)]
+        dZ = np.array(dA, copy=True)  # just converting dz to a correct object.
+        q = np.ones(dZ.shape)
+        q[Z <= 0] = eps
+        # When z <= 0,   set dz to epsilon .
+        dZ = np.multiply(dZ, q)
+
+        assert (dZ.shape == Z.shape)
+
         return dZ
 
     def sigmoid_backward(self, dA, l):
@@ -289,10 +327,34 @@ class NNetwork(object):
         Z = self.caches['Z'+str(l)]
     
         s = 1/(1+np.exp(-Z))
+        #s = self.caches['A'+str(l)]
+
         dZ = dA * s * (1-s)
     
         assert (dZ.shape == Z.shape)
     
+        return dZ
+
+    def tanh_backward(self, dA, l):
+        """
+            Implements the backward propagation for a single SIGMOID unit.
+
+            Arguments:
+            dA -- post-activation gradient, of any shape
+             l -- layer index for the cache (activation input Zl is needed) for computing backward propagation efficiently
+
+            Returns:
+            Z -- Gradient of the cost with respect to Z
+        """
+
+        #Z = self.caches['Z' + str(l)]
+        s = self.caches['A' + str(l)]
+
+        #s = 1 / (1 + np.exp(-Z))
+        dZ = 1.0-np.multiply(s , s)
+
+        # assert (dZ.shape == Z.shape)
+
         return dZ
     
     def update_parameters(self,gradients, learning_rate):
@@ -310,11 +372,14 @@ class NNetwork(object):
     
         L = self.num_layers-1  # the number of hidden layers
 
-        # Update rule for each parameter. 
+        # Update rule for each parameter.
+        weight_decay = 1.0
+        if self.l2_reg:
+            weight_decay = max(0.1, 1 - self.l2_reg_par/self.batch_size)
         for l in range(L):
-            self.parameters["W" + str(l+1)] = self.parameters["W" + str(l+1)] - learning_rate * gradients["dW" + str(l+1)]
+            self.parameters["W" + str(l+1)] = weight_decay*self.parameters["W" + str(l+1)] - learning_rate * gradients["dW" + str(l+1)]
             self.parameters["b" + str(l+1)] = self.parameters["b" + str(l+1)] - learning_rate * gradients["db" + str(l+1)]
-        
+
         return self.parameters
 
     def predict(self, Xn, Yn):
@@ -370,13 +435,17 @@ class NNetwork(object):
             A -- the output of the activation function, also called the post-activation value 
             Z -- the activation/layer input stored for computing the backward pass efficiently
              """
-        assert (activation == "sigmoid" or activation=="relu") , "Invalid activation string"
+        assert (activation == "sigmoid" or activation=="relu" or activation=="tanh" or activation=="l_relu") , "Invalid activation string"
         
         Z = W.dot(A_prev) + b # np.dot(W,A)+b
         if activation == "sigmoid":
             A = self.sigmoid(Z)
         elif activation == "relu":
             A = self.relu(Z)
+        elif activation == "l_relu":
+            A = self.l_relu(Z = Z)
+        elif activation == "tanh":
+            A = self.tanh_np(Z = Z)
     
         assert (A.shape == (W.shape[0], A_prev.shape[1]))
         assert (Z.shape == (W.shape[0], A_prev.shape[1]))
@@ -398,6 +467,21 @@ class NNetwork(object):
         # assert(A.shape == Z.shape)
         return A
 
+    def tanh_np(self, Z):
+        """
+                    Implements the tanh activation in numpy
+
+                    Arguments:
+                    Z -- numpy array of any shape
+
+                    Returns:
+                    A -- output of tanh(z), same shape as Z
+                """
+
+        A = np.tanh(Z)
+        # assert(A.shape == Z.shape)
+        return A
+
     def relu(self,Z):
         """
             Implement the RELU function.
@@ -413,7 +497,7 @@ class NNetwork(object):
         # assert(A.shape == Z.shape)
         return A
     
-    def l_relu(self,Z, eps=0.01):
+    def l_relu(self,Z):
         """
             Implement the leaky RELU function.
 
@@ -423,7 +507,7 @@ class NNetwork(object):
             Returns:
             A -- Post-activation parameter, of the same shape as Z
             """
-            
+        eps = self.l_relu_epsilon
         A = np.maximum(eps*Z,Z)
         # assert(A.shape == Z.shape)
         return A
