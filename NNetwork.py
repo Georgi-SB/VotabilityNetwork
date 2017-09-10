@@ -44,8 +44,8 @@ class NNetwork(object):
         self.run_grad_check = False
         self.use_dropout    = True
         self.keep_probs     = []
-        self.l2_reg         = False
-        self.l2_reg_par     = 1.
+        self.l2_reg         = True
+        self.l2_reg_par     = 0.1
         self.mini_batch     = False
         self.batch_size     = X.shape[1]
         if self.mini_batch:
@@ -255,7 +255,7 @@ class NNetwork(object):
         m = A_prev.shape[1]
 
         dW = 1./m * np.dot(dZ,A_prev.T)
-        # if self.l2_reg:
+        #if self.l2_reg:
         #    dW = dW + W * self.l2_reg_par/m
         db = 1./m * np.sum(dZ, axis = 1, keepdims = True)
         dA_prev = np.dot(W.T,dZ)
@@ -375,7 +375,7 @@ class NNetwork(object):
         # Update rule for each parameter.
         weight_decay = 1.0
         if self.l2_reg:
-            weight_decay = max(0.1, 1 - self.l2_reg_par/self.batch_size)
+            weight_decay = max(0.1, 1.0 - learning_rate*self.l2_reg_par/self.batch_size)
         for l in range(L):
             self.parameters["W" + str(l+1)] = weight_decay*self.parameters["W" + str(l+1)] - learning_rate * gradients["dW" + str(l+1)]
             self.parameters["b" + str(l+1)] = self.parameters["b" + str(l+1)] - learning_rate * gradients["db" + str(l+1)]
