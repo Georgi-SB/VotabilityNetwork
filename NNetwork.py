@@ -43,9 +43,11 @@ class NNetwork(object):
         self.l_relu_epsilon = 0.01
         self.run_grad_check = False
         self.use_dropout    = True
-        self.keep_probs     = []
+        self.keep_probs     = np.ones(self.num_layers)*0.8
+        self.keep_probs[0]  = 1.0
+        self.keep_probs[self.num_layers-1] = 1.0
         self.l2_reg         = False
-        self.l2_reg_par     = 0.01
+        self.lambd          = 0.0
         self.mini_batch     = False
         self.batch_size     = X.shape[1]
         if self.mini_batch:
@@ -141,10 +143,16 @@ class NNetwork(object):
         A = X
 
         for l in range(1, self.num_layers):
-            A_prev = A 
-            A, Z = self.linear_activation_forward(A_prev, self.parameters['W' + str(l)], 
-                                                         self.parameters['b' + str(l)], 
-                                                         activation = self.layer_types[l])
+            A_prev = A
+            A, Z = self.linear_activation_forward(A_prev, self.parameters['W' + str(l)],
+                                                  self.parameters['b' + str(l)],
+                                                  activation = self.layer_types[l])
+            if self.use_dropout and l < (self.num_layers-1): # never drop out neurons from the last layer
+                D = np.random.rand(A.shape[0], A.shape[1])
+                D = (D <= self.keep_probs[l])
+                A = np.multiply(A, D)/self.keep_probs[l]
+                self.caches['D' + str(l)] = D
+
             if self.writeCaches:
                 self.caches['A'+str(l)]= A
                 self.caches['Z'+str(l)]= Z
@@ -175,7 +183,29 @@ class NNetwork(object):
         assert(cost.shape == ())
     
         return cost
-    
+
+    def compute_regularized_cost(self, model_output, y, lambd):
+        """
+            Implements the cross entropy cost function with L2 regularization. Currently assumes output has dimension = 1
+
+            Arguments:
+            AL -- probability vector corresponding to the label predictions, shape (1, number of examples)
+            Y -- true "label" vector ( 0 or 1), shape (1, number of examples)
+            lambd -- regularization constant
+
+            Returns:
+            cost -- cross-entropy cost
+        """
+        cross_entropy_cost = self.compute_cost(model_output=model_output,y=y)
+        m = y.shape[1]
+        l2_reg_cost = 0.0
+        if self.l2_reg:
+            for l in range(self.num_layers):
+                l2_reg_cost += np.sum(np.square(self.parameters["W"+str(l)]))*lambd/(2.0*m)
+
+        cost = cross_entropy_cost + l2_reg_cost
+        return cost
+
     def backward_pass(self):
         """
             Implements the backward propagation 
@@ -201,6 +231,8 @@ class NNetwork(object):
         for l in reversed(range(L)):
             # lth layer:  gradients.
             dA_prev_temp, dW_temp, db_temp = self.linear_activation_backward(grads["dA" + str(l + 1)], l+1, activation = self.layer_types[l+1])
+            if self.use_dropout and l>0:
+                dA_prev_temp = np.multiply(dA_prev_temp, self.caches["D"+str(l)])/self.keep_probs[l]
             grads["dA" + str(l)] = dA_prev_temp
             grads["dW" + str(l + 1)] = dW_temp
             grads["db" + str(l + 1)] = db_temp
@@ -255,8 +287,8 @@ class NNetwork(object):
         m = A_prev.shape[1]
 
         dW = 1./m * np.dot(dZ,A_prev.T)
-        #if self.l2_reg:
-        #    dW = dW + W * self.l2_reg_par/m
+        if self.l2_reg:
+            dW = dW + W * self.lambd/m
         db = 1./m * np.sum(dZ, axis = 1, keepdims = True)
         dA_prev = np.dot(W.T,dZ)
     
@@ -374,8 +406,8 @@ class NNetwork(object):
 
         # Update rule for each parameter.
         weight_decay = 1.0
-        if self.l2_reg:
-            weight_decay = max(0.1, 1.0 - learning_rate*self.l2_reg_par/self.batch_size)
+        #if self.l2_reg:
+        #    weight_decay = max(0.1, 1.0 - learning_rate*self.lambd/self.batch_size)
         for l in range(L):
             self.parameters["W" + str(l+1)] = weight_decay*self.parameters["W" + str(l+1)] - learning_rate * gradients["dW" + str(l+1)]
             self.parameters["b" + str(l+1)] = self.parameters["b" + str(l+1)] - learning_rate * gradients["db" + str(l+1)]
@@ -511,3 +543,21 @@ class NNetwork(object):
         A = np.maximum(eps*Z,Z)
         # assert(A.shape == Z.shape)
         return A
+
+    def set_keep_probs(self, keep_probs):
+        """
+                    keep_probs for dropout setter
+
+                    Arguments:
+                    keep_probs -- numpy array (1, num_layers) with the probs to keep the neurons
+                    first and last entry are irrelevent and are set to 1
+
+                    Returns:
+                    A -- Post-activation parameter, of the same shape as Z
+                    """
+        assert keep_probs.shape == (1, self.num_layers) , "Invalid keep_probs dimension"
+        self.keep_probs = keep_probs
+        self.keep_probs[0]=1.0
+        self.keep_probs[self.num_layers-1] = 1.0
+        for a in self.keep_probs:
+            assert ( (a>0.0) and (a <= 1.0) ), "Invalid keep_probs value. Must be strictly greater than 0 and smaller or equal than 1.0"
