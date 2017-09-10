@@ -1,0 +1,16 @@
+\contentsline {section}{\numberline {1}Notations}{2}
+\contentsline {section}{\numberline {2}Loss and activation functions}{2}
+\contentsline {section}{\numberline {3}Vectorized forward pass}{3}
+\contentsline {section}{\numberline {4}Vectorized backward pass}{3}
+\contentsline {section}{\numberline {5}Alternative vectorized backward pass}{5}
+\contentsline {section}{\numberline {6}Optimization}{6}
+\contentsline {subsection}{\numberline {6.1}Basic gradient descent}{6}
+\contentsline {subsection}{\numberline {6.2}Initialization}{6}
+\contentsline {subsection}{\numberline {6.3}Normalization}{7}
+\contentsline {subsection}{\numberline {6.4}Xavier Initialization}{7}
+\contentsline {subsection}{\numberline {6.5}RMSProp}{7}
+\contentsline {subsection}{\numberline {6.6}RMSProp}{7}
+\contentsline {section}{\numberline {7}Regularization}{7}
+\contentsline {subsection}{\numberline {7.1}L2/L1}{7}
+\contentsline {subsection}{\numberline {7.2}Dropout}{8}
+\contentsline {subsection}{\numberline {7.3}Early stopping}{8}

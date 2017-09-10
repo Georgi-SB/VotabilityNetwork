@@ -44,8 +44,8 @@ class NNetwork(object):
         self.run_grad_check = False
         self.use_dropout    = True
         self.keep_probs     = []
-        self.l2_reg         = True
-        self.l2_reg_par     = 0.1
+        self.l2_reg         = False
+        self.l2_reg_par     = 0.01
         self.mini_batch     = False
         self.batch_size     = X.shape[1]
         if self.mini_batch:

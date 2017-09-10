@@ -174,7 +174,7 @@ In the binary case it simplifies to:
 \[ L^{(i)} = - y^{(i)} \log \hat{y}^{(i)}  - (1-y^{(i)} ) \log (1-\hat{y}^{(i)} )    \]
 
 The total batch loss that is optimized is:
-\[  J = \frac{1}{m} =\sum_{i=1}^{m} L^{(i)}     \]
+\[  J = \frac{1}{m} \sum_{i=1}^{m} L^{(i)}     \]
 
 Sigmoid function:
 \begin{enumerate}
@@ -294,7 +294,7 @@ with dimensions
 3A. Finally the expressions for $d W^{[l]} $ and $d b^{[l]}$ remain as in the previous section
 
 
-Using the above the algorithm for the backprop is: 
+The corresponding backprop algorithm    is: 
 
 backprop A:\\
 \begin{enumerate}
@@ -316,8 +316,66 @@ backprop A:\\
 \item $  dW^{[l]} = \frac{1}{m} dZ^{[l]}  (A^{[l-1]})^T$.  Dimension -  $(n^{[l]}, m) \cdot (m,n^{[l-1]}) =(n^{[l]}, n^{[l-1]})$\\
   \end{enumerate} 
  \end{enumerate} 
+ 
+ 
+\section{Optimization}
 
  
+ \subsection{Basic gradient descent}
+
+The learning rate $\alpha$.  
+The update of weights:
+\begin{align*}
+W^{[l]}&:= W^{[l]} - \alpha  dW^{[l]}\\
+b^{[l]}&:= b^{[l]} - \alpha  db^{[l]}
+\end{align*}
+
+\subsection{Initialization}
+Initialization helps speed up the learning process and avoid vanishing/exploding gradients
+\subsection{Normalization}
+To speed-up learning normalize the feature matrix $X$:
+\begin{align*}
+\mu &:= \frac{1}{m}\sum_{i=1}^m  X^{(i)} =  \frac{1}{m}\text{np.sum}(X, \text{axis=1, keepdim=True})\\
+X &:= X - \mu \\
+\sigma^2 &:= \frac{1}{m}\sum_{i=1}^m  X^{(i)}\odot X^{(i)} =  \frac{1}{m}  \text{np.sum}(X\odot X, \text{axis=1, keepdim=True})\\
+X &:= X/\sigma^2
+\end{align*}
+\subsection{Xavier Initialization}
+To avoid vanishing/exploding gradients one should initialize the weights should be initialized in such a manner that the fan-in
+into a neuron should have variance $1$. The fan-in inti a neuron in the $l$-th layer has $n^{[l-1]}$ components. 
+Therefore the Xavier initialization is (for $\tanh$ or sigmoid activations)
+\[ W^[l] = \text{np.rand.randn}((n^{[l]}, n^{[l-1]} )) * 1 /  \text{ np.sqrt} (n^{[l-1]}) \]
+For  ReLU layers it is better to use 
+\[ W^[l] = \text{np.rand.randn}((n^{[l]}, n^{[l-1]} )) *\text{ np.sqrt} ( 2 /  n^{[l-1]}) \]
+The Bengio et al. intialization 
+\[ W^[l] = \text{np.rand.randn}((n^{[l]}, n^{[l-1]} )) *  \text{ np.sqrt} (2 / n^{[l-1]} + n^{[l]}) \]
+
+\subsection{RMSProp}
+
+\subsection{RMSProp}
+
+
+
+\section{Regularization}
+
+\subsection{L2/L1}
+The total batch loss without regularization is:
+\[  J = \frac{1}{m} \sum_{i=1}^{m} L^{(i)}     \]
+For the L2 regularization the objective  objective function is modified as follows:
+\[  J^{L2} =  J + \frac{\lambda}{2m} \sum_{k=1}^L ||W^{[k]}||_F^2 = \frac{1}{m} \sum_{i=1}^{m} L^{(i)} + \frac{\lambda}{2m} \sum_{k=1}^L ||W^{[k]}||_F^2     \]
+where the squared Frobenius matrix norm is 
+\[  ||W^{[k]}||_F^2 = \sum_{i=1}^{n^{[k-1]}} \sum_{j=1}^{n^{[k]}} (W^{[k]}_{ij})^2     \]
+
+The gradient is then:
+\[  dW^{[l]} := dJ^{L2}/ dW^{[l]} =  dJ/ dW^{[l]}  + \frac{\lambda}{m} W^{[l]}    \]
+
+and the update:
+\[  W^{[l]}:= W^{[l]} - \alpha  dW^{[l]}  = (1-\frac{\alpha \lambda}{m}  ) dW^{[l]}  -   \alpha dJ/ dW^{[l]}      \]
+which is a minor modification of the basic un-regularized  backprop update 
+
+\subsection{Dropout}
+
+\subsection{Early stopping} 
 
 
 %\newpage
