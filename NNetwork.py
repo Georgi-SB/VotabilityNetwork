@@ -148,10 +148,13 @@ class NNetwork(object):
                                                   self.parameters['b' + str(l)],
                                                   activation = self.layer_types[l])
             if self.use_dropout and l < (self.num_layers-1): # never drop out neurons from the last layer
-                D = np.random.rand(A.shape[0], A.shape[1])
-                D = (D < self.keep_probs[l])
+                if  l == (self.num_layers-1):
+                    D = np.ones(A.shape)
+                else:
+                    D = np.random.rand(A.shape[0], A.shape[1])
+                    D = (D <= self.keep_probs[l])
                 A = np.multiply(A, D)
-                A = A*1.0/self.keep_probs[l]
+                A = A/self.keep_probs[l]
                 self.caches['D' + str(l)] = D
 
             if self.writeCaches:
@@ -265,8 +268,9 @@ class NNetwork(object):
         elif activation == "tanh":
             dZ = self.tanh_backward(dA, l)
 
-        if self.use_dropout and (l != 0) and (l != (self.num_layers-1)):
-            dZ = np.multiply(dZ, self.caches["D"+str(l)])
+        #if self.use_dropout and (l != 0) and (l != (self.num_layers-1)):
+            #dZ = np.multiply(dZ, np.int64(self.caches["A"+str(l)]>0  ))
+            #dZ = np.multiply(dZ, self.caches["D" + str(l)])
 
         dA_prev, dW, db = self.linear_backward(dZ, l)
     
