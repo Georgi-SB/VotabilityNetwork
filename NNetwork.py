@@ -11,10 +11,11 @@ from PIL import Image
 from scipy import ndimage
 
 
+
 class NNetwork(object):
 
     
-    def __init__(self, layer_dims, layer_types, X, Y):
+    def __init__(self, layer_dims, layer_types, X, Y, use_dropout = False, use_l2_regularization = False):
         """Arguments: 
             layer_dims: a list of input layer and hidden layer sizes 
             layer_types: a list of strings - the first element is the input and the 
@@ -42,12 +43,12 @@ class NNetwork(object):
         self.writeCaches    = True
         self.l_relu_epsilon = 0.01
         self.run_grad_check = False
-        self.use_dropout    = True
+        self.use_dropout    = use_dropout
         self.keep_probs     = np.ones(self.num_layers)*0.8
         self.keep_probs[0]  = 1.0
         self.keep_probs[self.num_layers-1] = 1.0
-        self.l2_reg         = False
-        self.lambd          = 0.0
+        self.l2_reg         = use_l2_regularization
+        self.lambd          = 10.0
         self.mini_batch     = False
         self.batch_size     = X.shape[1]
         if self.mini_batch:
@@ -80,8 +81,10 @@ class NNetwork(object):
             
             # Compute cost.
             L = self.num_layers-1 # number of
+            # use only if sigmoid explodes
+            if self.use_dropout:
+                self.caches["A" + str(L)] = np.minimum(np.maximum(self.caches["A"+str(L)], 0.00000001), 0.99999999)
             cost = self.compute_cost(self.caches["A"+str(L)], self.Y)
-    
             # Backward propagation.
             self.grads = self.backward_pass()
 
@@ -120,6 +123,8 @@ class NNetwork(object):
 
         for l in range(1, self.num_layers):
             parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) / np.sqrt(self.layer_dims[l-1]) #*0.01
+            #He initialization
+            # parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) np.sqrt(2)/ np.sqrt((self.layer_dims[l-1] + self.layer_dims[l]) #*0.01
             parameters['b' + str(l)] = np.zeros((self.layer_dims[l], 1))
         
             assert(parameters['W' + str(l)].shape == (self.layer_dims[l], self.layer_dims[l-1])), "Arc weight matrices does not match the NN architecture"
@@ -570,3 +575,5 @@ class NNetwork(object):
         self.keep_probs[self.num_layers-1] = 1.0
         for a in self.keep_probs:
             assert ( (a>0.0) and (a <= 1.0) ), "Invalid keep_probs value. Must be strictly greater than 0 and smaller or equal than 1.0"
+
+
