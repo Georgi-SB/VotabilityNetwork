@@ -340,15 +340,15 @@ X &:= X - \mu \\
 \sigma^2 &:= \frac{1}{m}\sum_{i=1}^m  X^{(i)}\odot X^{(i)} =  \frac{1}{m}  \text{np.sum}(X\odot X, \text{axis=1, keepdim=True})\\
 X &:= X/\sigma^2
 \end{align*}
-\subsection{Xavier Initialization}
+\subsection{Xavier/He/Bengio Initialization}
 To avoid vanishing/exploding gradients one should initialize the weights should be initialized in such a manner that the fan-in
 into a neuron should have variance $1$. The fan-in inti a neuron in the $l$-th layer has $n^{[l-1]}$ components. 
 Therefore the Xavier initialization is (for $\tanh$ or sigmoid activations)
-\[ W^[l] = \text{np.rand.randn}((n^{[l]}, n^{[l-1]} )) * 1 /  \text{ np.sqrt} (n^{[l-1]}) \]
-For  ReLU layers it is better to use 
-\[ W^[l] = \text{np.rand.randn}((n^{[l]}, n^{[l-1]} )) *\text{ np.sqrt} ( 2 /  n^{[l-1]}) \]
-The Bengio et al. intialization 
-\[ W^[l] = \text{np.rand.randn}((n^{[l]}, n^{[l-1]} )) *  \text{ np.sqrt} (2 / n^{[l-1]} + n^{[l]}) \]
+\[ W^[l] = \text{np.random.randn}((n^{[l]}, n^{[l-1]} )) * \text{ np.sqrt} (1 /  n^{[l-1]}) \]
+According to He et al (2015) for   ReLU layers it is better to use 
+\[ W^[l] = \text{np.random.randn}((n^{[l]}, n^{[l-1]} )) *\text{ np.sqrt} ( 2 /  n^{[l-1]}) \]
+The Bengio Intialization: 
+\[ W^[l] = \text{np.random.randn}((n^{[l]}, n^{[l-1]} )) *  \text{ np.sqrt} (2 /( n^{[l-1]} + n^{[l]}) ) \]
 
 \subsection{RMSProp}
 
@@ -370,7 +370,7 @@ The gradient is then:
 \[  dW^{[l]} := dJ^{L2}/ dW^{[l]} =  dJ/ dW^{[l]}  + \frac{\lambda}{m} W^{[l]}    \]
 
 and the update:
-\[  W^{[l]}:= W^{[l]} - \alpha  dW^{[l]}  = (1-\frac{\alpha \lambda}{m}  ) dW^{[l]}  -   \alpha dJ/ dW^{[l]}      \]
+\[  W^{[l]}:= W^{[l]} - \alpha  dW^{[l]}  = (1-\frac{\alpha \lambda}{m}  ) W^{[l]}  -   \alpha dJ/ dW^{[l]}      \]
 which is a minor modification of the basic un-regularized  backprop update 
 
 \subsection{Dropout}
