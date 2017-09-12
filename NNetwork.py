@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import scipy
 from PIL import Image
 from scipy import ndimage
+import copy
 
 
 
@@ -21,8 +22,8 @@ class NNetwork(object):
             layer_types: a list of strings - the first element is the input and the 
             type is ignored, the last is the output and it can be sigmoid, tanh,
             relu, lrelu, softmax, the rest can be sigmoid, relu, tanh, lrelu
-            X: features in vectorized form - each column is a separate training example
-            Y: target variable in vectorized form, each column is a separate training example
+            X: features in vectorized form - each column is a separate training example. numpy array
+            Y: target variable in vectorized form, each column is a separate training example. numpy array
             
             Some conventions:
                 1. layer_dims, layer_types contains input + hidden layers. counting starts from 0!
@@ -67,9 +68,9 @@ class NNetwork(object):
             """
         tic=time.process_time()
         np.random.seed(1)
-        self.parameters     = self.initialize_parameters()
+        self.parameters = self.initialize_parameters()
         # keep track of cost
-        costs               = []    
+        costs = []
     
         # Parameters initialization.
         # parameters = initialize_parameters_deep(layers_dims)
@@ -86,7 +87,7 @@ class NNetwork(object):
                 self.caches["A" + str(L)] = np.minimum(np.maximum(self.caches["A"+str(L)], 0.00000001), 0.99999999)
             cost = self.compute_cost(self.caches["A"+str(L)], self.Y)
             # Backward propagation.
-            self.grads = self.backward_pass()
+            self.grads = self.backward_pass(self.Y)
 
 
             # Update parameters.
@@ -134,14 +135,13 @@ class NNetwork(object):
     
     def forward_pass(self, X):
         """
-            Implements the cross entropy cost function. Currently assumes output has dimension = 1
+            Implements the forward propagation
 
             Arguments:
-            AL -- probability vector corresponding to the label predictions, shape (1, number of examples)
-            Y -- true "label" vector ( 0 or 1), shape (1, number of examples)
+            X -- input features
 
             Returns:
-            cost -- cross-entropy cost
+            model output -- output from the last hidden layer
         """
         
         # self.caches = {}
@@ -153,11 +153,9 @@ class NNetwork(object):
                                                   self.parameters['b' + str(l)],
                                                   activation = self.layer_types[l])
             if self.use_dropout and l < (self.num_layers-1): # never drop out neurons from the last layer
-                if  l == (self.num_layers-1):
-                    D = np.ones(A.shape)
-                else:
-                    D = np.random.rand(A.shape[0], A.shape[1])
-                    D = (D <= self.keep_probs[l])
+                D = np.random.binomial(1, self.keep_probs[l], A.shape)
+                #D = np.random.rand(A.shape[0], A.shape[1])
+                #D = (D <= self.keep_probs[l])
                 A = np.multiply(A, D)
                 A = A/self.keep_probs[l]
                 self.caches['D' + str(l)] = D
@@ -215,7 +213,7 @@ class NNetwork(object):
         cost = cross_entropy_cost + l2_reg_cost
         return cost
 
-    def backward_pass(self):
+    def backward_pass(self, Y):
         """
             Implements the backward propagation 
     
@@ -231,10 +229,10 @@ class NNetwork(object):
         L = self.num_layers-1  # the number of hidden layers
         assert ('A'+str(L) in self.caches), "Fail: Backward propagation is possible only after forward propagation!" 
         AL = self.caches['A'+str(L)]
-        self.Y = self.Y.reshape(AL.shape) # after this line, Y is the same shape as AL
+        Y = Y.reshape(AL.shape) # after this line, Y is the same shape as AL
     
         # Initializing the backpropagation
-        grads["dA" + str(L)] = - (np.divide(self.Y, AL) - np.divide(1 - self.Y, 1 - AL))
+        grads["dA" + str(L)] = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
         # self.grads["dA" + str(L-1)], grads["dW" + str(L)], grads["db" + str(L)] = linear_activation_backward(dAL, L, activation = layer_types[L-1])
     
         for l in reversed(range(L)):
@@ -249,7 +247,7 @@ class NNetwork(object):
         return grads
 
 
-    def linear_activation_backward(self, dA, l, activation):
+    def linear_activation_backward(self, dA, layer, activation):
         """
             Implements the backward propagation for the LINEAR->ACTIVATION layer.
     
@@ -265,19 +263,19 @@ class NNetwork(object):
             """
 
         if activation == "relu":
-            dZ = self.relu_backward(dA, l)
+            dZ = self.relu_backward(dA, layer)
         elif activation == "sigmoid":
-            dZ = self.sigmoid_backward(dA, l)
+            dZ = self.sigmoid_backward(dA, layer)
         elif activation == "l_relu":
-            dZ = self.l_relu_backward(dA, l)
+            dZ = self.l_relu_backward(dA, layer)
         elif activation == "tanh":
-            dZ = self.tanh_backward(dA, l)
+            dZ = self.tanh_backward(dA, layer)
 
-        #if self.use_dropout and (l != 0) and (l != (self.num_layers-1)):
-            #dZ = np.multiply(dZ, np.int64(self.caches["A"+str(l)]>0  ))
-            #dZ = np.multiply(dZ, self.caches["D" + str(l)])
+        if self.use_dropout and (layer != 0) and (layer != (self.num_layers-1)):
+            dZ = np.multiply(dZ, self.caches["D"+str(layer)])
 
-        dA_prev, dW, db = self.linear_backward(dZ, l)
+
+        dA_prev, dW, db = self.linear_backward(dZ, layer)
     
         return dA_prev, dW, db
     
@@ -577,3 +575,107 @@ class NNetwork(object):
             assert ( (a>0.0) and (a <= 1.0) ), "Invalid keep_probs value. Must be strictly greater than 0 and smaller or equal than 1.0"
 
 
+    def gradient_check(self,  epsilon = 1e-7):
+        """ Implements a gradient checking routine to verify the backprop implementation"""
+
+        # make a full forward and backward pass
+        self.parameters = self.initialize_parameters()
+
+        # Forward propagation:
+        self.forward_pass(self.X)
+
+        # Compute cost.
+        L = self.num_layers - 1  # number of
+        cost = self.compute_cost(self.caches["A" + str(L)], self.Y)
+        # Backward propagation.
+        self.grads = self.backward_pass(self.Y)
+
+        #calculate numerical gradient approximation
+        for l in range(L):
+            parameters_plus  = copy.deepcopy(self.parameters)
+            J_plus = np.zeros(parameters_plus["W"+str(l+1)].shape)
+            J_minus = np.zeros(J_plus.shape)
+            gradapprox = np.zeros(J_plus.shape)
+            parameters_minus = copy.deepcopy(self.parameters)
+            for i in range(self.layer_dims[l+1]):
+                for j in range(self.layer_dims[l]):
+                    #bump values
+                    parameters_plus["W" + str(l + 1)][i][j] += epsilon
+                    parameters_minus["W" + str(l + 1)][i][j] -= epsilon
+
+                    A_plus = self.forward_pass_for_gradient_check(self.X, parameters_plus)
+                    J_plus = self.compute_cost(A_plus, self.Y )
+                    A_minus = self.forward_pass_for_gradient_check(self.X, parameters_minus)
+                    J_minus = self.compute_cost(A_minus, self.Y)
+                    gradapprox[i][j]=(J_plus - J_minus)/(2.0*epsilon)
+                    # restore values
+                    parameters_plus["W" + str(l + 1)][i][j] -= epsilon
+                    parameters_minus["W" + str(l + 1)][i][j] += epsilon
+
+
+            numerator = np.linalg.norm(gradapprox - self.grads["dW"+str(l+1)])  # Step 1'
+            denominator = np.linalg.norm(gradapprox) + np.linalg.norm(self.grads["dW"+str(l+1)])  # Step 2'
+            difference = numerator / denominator  # Step 3'
+            ### END CODE HERE ###
+
+            print("Checking W gradients for hidden layer " + str(l+1))
+            if difference > 1e-7:
+                print("\033[93m" + "There is a mistake in the backward propagation! difference = " + str(
+                    difference) + "\033[0m")
+            else:
+                print("\033[92m" + "Your backward propagation works perfectly fine! difference = " + str(
+                    difference) + "\033[0m")
+
+            parameters_plus = copy.deepcopy(self.parameters)
+            J_plus = np.zeros(parameters_plus["b" + str(l + 1)].shape)
+            J_minus = np.zeros(J_plus.shape)
+            gradapprox = np.zeros(J_plus.shape)
+            parameters_minus = copy.deepcopy(self.parameters)
+            for i in range(self.layer_dims[l + 1]):
+                # bump values
+                parameters_plus["b" + str(l + 1)][i,0] += epsilon
+                parameters_minus["b" + str(l + 1)][i,0] -= epsilon
+                A_plus = self.forward_pass_for_gradient_check(self.X, parameters_plus)
+                J_plus = self.compute_cost(A_plus, self.Y)
+                A_minus = self.forward_pass_for_gradient_check(self.X, parameters_minus)
+                J_minus = self.compute_cost(A_minus, self.Y)
+                gradapprox[i][0] = (J_plus - J_minus) / (2.0 * epsilon)
+                # restore values
+                parameters_plus["b" + str(l + 1)][i,0] -= epsilon
+                parameters_minus["b" + str(l + 1)][i,0] += epsilon
+
+            numerator = np.linalg.norm(gradapprox - self.grads["db"+str(l+1)])  # Step 1'
+            denominator = np.linalg.norm(gradapprox) + np.linalg.norm(self.grads["db"+str(l+1)])  # Step 2'
+            difference = numerator / denominator  # Step 3'
+            ### END CODE HERE ###
+
+            print("Checking b gradients for hidden layer " + str(l + 1))
+            if difference > 1e-7:
+                print("\033[93m" + "There is a mistake in the backward propagation! difference = " + str(
+                    difference) + "\033[0m")
+            else:
+                print("\033[92m" + "The backward propagation works perfectly fine! difference = " + str(
+                    difference) + "\033[0m")
+
+    def forward_pass_for_gradient_check(self, x, parameters):
+        """
+            Implements the cross entropy cost function. Currently assumes output has dimension = 1
+
+            Arguments:
+            AL -- probability vector corresponding to the label predictions, shape (1, number of examples)
+            Y -- true "label" vector ( 0 or 1), shape (1, number of examples)
+
+            Returns:
+            cost -- cross-entropy cost
+        """
+
+        # self.caches = {}
+        A = x
+
+        for l in range(1, self.num_layers):
+            A_prev = A
+            A, _ = self.linear_activation_forward(A_prev, parameters['W' + str(l)],
+                                                  parameters['b' + str(l)],
+                                                  activation=self.layer_types[l])
+
+        return A

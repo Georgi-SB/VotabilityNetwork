@@ -40,7 +40,8 @@ class TestNNetwork(object):
                                          self.layer_types,
                                          self.train_x,
                                          self.train_y,
-                                         use_l2_regularization = True)
+                                         use_dropout=True,
+                                         use_l2_regularization = False)
          
       network_object.fit_model(learning_rate = self.learning_rate, num_iterations = self.num_iterations, print_cost=self.print_cost)
          
@@ -48,6 +49,15 @@ class TestNNetwork(object):
       network_object.predict(self.train_x, self.train_y)
       print("results on test:")
       network_object.predict(self.test_x, self.test_y)
+
+   def run_gradient_check(self):
+      network_object = NNetwork.NNetwork(self.layer_dims,
+                                          self.layer_types,
+                                          self.train_x[:, 0:8],
+                                          self.train_y[:, 0:8],
+                                          use_l2_regularization=False)
+
+      network_object.gradient_check(epsilon=1e-7)
 
    def benchmark_model(self):
 
@@ -129,24 +139,28 @@ class TestNNetwork(object):
 
 
 
-
-#test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075, num_iterations = 3000, print_cost=True)
-
-
-#test_object.benchmark_model()
+# For benchmarking the core network run this:
+################################################
+# test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075, num_iterations = 3000, print_cost=True)
 
 
+# test_object.benchmark_model()
+################################################
 
 
-#test_object = TestNNetwork([20, 7, 5, 1], ["l_relu","l_relu","l_relu","sigmoid"], learning_rate = 0.0075, num_iterations = 3000, print_cost=True)
+# For gradient check run this:
+################################################
+#test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"],
+#                           learning_rate = 0.0075,
+#                           num_iterations = 3000,
+#                           print_cost=True)
 
-test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"],
-                           learning_rate = 0.0075,
-                           num_iterations = 3000,
-                           print_cost=True)
+
+#test_object.run_gradient_check()
+################################################
 
 
-#test_object = TestNNetwork([20, 7, 5, 1], ["sigmoid","sigmoid","sigmoid","sigmoid"], learning_rate = 0.0075, num_iterations = 3000, print_cost=True)
+test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075, num_iterations = 3000, print_cost=True)
 
 #test_object = TestNNetwork([20, 7, 5, 1], ["tanh","tanh","tanh","sigmoid"], learning_rate = 0.0075, num_iterations = 3000, print_cost=True)
 
