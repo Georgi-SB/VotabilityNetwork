@@ -382,19 +382,8 @@ More specifically: for each hidden layer $l$ one sets a probability $p^{[l]}$ su
 is kept with probability $p^{[l]}$. 
 
 Implementation: 
-\begin{enumerate}
- \item During forward pass:
- \begin{enumerate}
- \item for each layer $l$ with output activation $A^{[l]}$ define a matrix $D^{[l]}$ with uniformly distributed element 
-in $[0,1]$ and then set $D^{[l]} = (D^{[l]}<p^{[l]})$ (or set $D^{[l]}$ to have iid Bernoulli elements with probability $p^{(l)}$).
-\item  Then just zero out $A^{[l]}$ by setting it to $A^{[l]}  = A^{[l]} \odot D^{[l]}$ 
-\item ... and scale it up to have the same expected fan-output $A^{[l]}  = A^{[l]} / p^{[l]}$ 
-\end{enumerate}
-\item  During backward pass: When generating the $dA^{[l]} $ via $  dA^{[l]}  =  ( (W^{[l+1]})^T \cdot dZ^{[l+1]} )   $
-apply the same mask, that is $dA^{[l]}  = dA^{[l]} \odot D^{[l]}$  and scale  $dA^{[l]}  = dA^{[l]} / p^{[l]}$ 
-\end{enumerate}
-
-Do not apply dropout at test time or in production! 
+1. During forward pass for layer $l$ with output activation $A^{(l)}$ define a matrix $D^{(l)}$ with uniformly distributed element 
+in $[0,1]$ and then set $D^{(l)} = (D^{(l)}<kee)$
 
 \subsection{Early stopping} 
 
