@@ -40,10 +40,20 @@ class TestNNetwork(object):
                                          self.layer_types,
                                          self.train_x,
                                          self.train_y,
-                                         use_dropout=True,
+                                         use_dropout=False,
                                          use_l2_regularization = False)
          
-      network_object.fit_model(learning_rate = self.learning_rate, num_iterations = self.num_iterations, print_cost=self.print_cost)
+      # network_object.fit_model(batchX = self.train_x[:, 0:100],
+      #                         batchY = self.train_y[:, 0:100],
+      #                         learning_rate = self.learning_rate,
+      #                         num_iterations = self.num_iterations,
+      #                         print_cost=self.print_cost)
+
+      network_object.fit_model(batchX=self.train_x,
+                               batchY=self.train_y,
+                               learning_rate=self.learning_rate,
+                               num_iterations=self.num_iterations,
+                               print_cost=self.print_cost)
          
       print("results on train:")
       network_object.predict(self.train_x, self.train_y)
@@ -68,7 +78,7 @@ class TestNNetwork(object):
       network_object = NNetwork.NNetwork( [train_x.shape[0],20, 7, 5, 1], ["sigmoid","relu", "relu", "relu", "sigmoid"], train_x, train_y)
 
 
-      parameters, costs = network_object.fit_model(learning_rate=self.learning_rate, num_iterations=self.num_iterations,
+      parameters, costs = network_object.fit_model(batchX = train_x, batchY = train_y, learning_rate=self.learning_rate, num_iterations=self.num_iterations,
                                                print_cost=self.print_cost)
 
       print("results on train:")

@@ -35,12 +35,12 @@ class NNetwork(object):
         assert len(layer_dims) == len(layer_types), "invalid layer specs!" 
         self.parameters     = {} # self.initialize_parameters()
         self.caches         = {}    # keys: "Zl" and "Al" for the input and output activation
-        self.caches['A0']   = X     # input layer 
+        # self.caches['A0']   = X     # input layer
         self.grads          = {}    # keeps the calculated gradients of the cost wrt weights. keys "dWl", "dbl"
         self.X              = X
         self.Y              = Y
         self.x_size         = X.shape[0] # dimension of input data
-        self.m              = X.shape[1] # size of training data set
+        self.M              = X.shape[1] # size of training data set
         self.writeCaches    = True
         self.l_relu_epsilon = 0.01
         self.run_grad_check = False
@@ -57,7 +57,7 @@ class NNetwork(object):
         
 
 
-    def fit_model(self, learning_rate = 0.0075, num_iterations = 3000, print_cost=True):#lr was 0.009
+    def fit_model(self, batchX, batchY, learning_rate = 0.0075, num_iterations = 3000, print_cost=True):#lr was 0.009
         """Implements the L-layer neural network
             Arguments:
             learning_rate -- learning rate of the gradient descent update rule
@@ -66,6 +66,7 @@ class NNetwork(object):
             Returns:
             parameters -- parameters learnt by the model. They can then be used to predict.
             """
+        self.caches['A0'] = batchX
         tic=time.process_time()
         np.random.seed(1)
         self.parameters = self.initialize_parameters()
@@ -78,16 +79,16 @@ class NNetwork(object):
         # Loop (gradient descent)
         for i in range(0, num_iterations):
             # Forward propagation: 
-            self.forward_pass(self.X)
+            self.forward_pass(batchX)
             
             # Compute cost.
             L = self.num_layers-1 # number of
             # use only if sigmoid explodes
             if self.use_dropout:
                 self.caches["A" + str(L)] = np.minimum(np.maximum(self.caches["A"+str(L)], 0.00000001), 0.99999999)
-            cost = self.compute_cost(self.caches["A"+str(L)], self.Y)
+            cost = self.compute_cost(self.caches["A"+str(L)], batchY)
             # Backward propagation.
-            self.grads = self.backward_pass(self.Y)
+            self.grads = self.backward_pass(batchY)
 
 
             # Update parameters.
@@ -184,7 +185,7 @@ class NNetwork(object):
         # L = self.num_layers-1  # the number of hidden layers
         # assert ('A'+str(L) in self.caches), "Cost is not defined as model ouput has not been calculated!" 
         # Compute loss from AL and Y.
-        cost = (1./m) * (-np.dot(y,np.log(model_output.T)) - np.dot(1-y, np.log(1-model_output.T)) )
+        cost = (1./m) * (-np.dot(y, np.log(model_output.T)) - np.dot(1-y, np.log(1-model_output.T)))
     
         cost = np.squeeze(cost)      # To make sure your cost's shape is what we expect (e.g. this turns [[17]] into 17).
         assert(cost.shape == ())
