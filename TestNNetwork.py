@@ -14,8 +14,9 @@ from scipy import ndimage
 import NNetwork 
        
 class TestNNetwork(object):
-   def __init__(self, hidden_layer_sizes, hidden_layer_types, learning_rate = 0.0075, num_iterations = 3000, print_cost=True):
-      """Arguments:
+   def __init__(self, hidden_layer_sizes, hidden_layer_types, learning_rate = 0.0075, num_epochs = 3000
+                , print_cost=True):
+       """Arguments:
             hidden_layer_sizes -- list of hidden layer sizes
             hidden_layer_types -- list of hidden layer types "relu", "sigmoid"
             learning_rate -- learning rate of the gradient descent update rule
@@ -25,12 +26,13 @@ class TestNNetwork(object):
             Returns:
             parameters -- parameters learnt by the model. They can then be used to predict.
             """
-      self.train_x, self.train_y, self.test_x, self.test_y, self.classes = self.load_cat_pics_data()
-      self.layer_dims = [self.train_x.shape[0]] + hidden_layer_sizes
-      self.layer_types = ["sigmoid"]+hidden_layer_types
-      self.learning_rate = learning_rate
-      self.num_iterations = num_iterations
-      self.print_cost = print_cost
+       self.train_x, self.train_y, self.test_x, self.test_y, self.classes = self.load_cat_pics_data()
+       self.layer_dims = [self.train_x.shape[0]] + hidden_layer_sizes
+       self.layer_types = ["sigmoid"]+hidden_layer_types
+       self.learning_rate = learning_rate
+       self.num_epochs = num_epochs
+       self.print_cost = print_cost
+
         
         
    def run_test(self):
@@ -49,12 +51,14 @@ class TestNNetwork(object):
       #                         num_iterations = self.num_iterations,
       #                         print_cost=self.print_cost)
 
-      network_object.fit_model(batchX=self.train_x,
-                               batchY=self.train_y,
-                               learning_rate=self.learning_rate,
-                               num_iterations=self.num_iterations,
+      network_object.fit_model(X=self.train_x,
+                               Y=self.train_y,
+                               mini_batch_size=self.train_x.shape[1],
+                               optimization_mode="adam",
+                               learning_rate= 0.0075,   # self.learning_rate,
+                               num_epochs=self.num_epochs,
                                print_cost=self.print_cost)
-         
+
       print("results on train:")
       network_object.predict(self.train_x, self.train_y)
       print("results on test:")
@@ -78,8 +82,13 @@ class TestNNetwork(object):
       network_object = NNetwork.NNetwork( [train_x.shape[0],20, 7, 5, 1], ["sigmoid","relu", "relu", "relu", "sigmoid"], train_x, train_y)
 
 
-      parameters, costs = network_object.fit_model(batchX = train_x, batchY = train_y, learning_rate=self.learning_rate, num_iterations=self.num_iterations,
-                                               print_cost=self.print_cost)
+      parameters, costs = network_object.fit_model(X = train_x,
+                                                   Y = train_y,
+                                                   mini_batch_size=train_y.shape[1],
+                                                   optimization_mode="gradient_descend",
+                                                   learning_rate=self.learning_rate,
+                                                   num_epochs=self.num_epochs,
+                                                   print_cost=self.print_cost)
 
       print("results on train:")
       network_object.predict(train_x, train_y)
@@ -151,7 +160,7 @@ class TestNNetwork(object):
 
 # For benchmarking the core network run this:
 ################################################
-# test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075, num_iterations = 3000, print_cost=True)
+# test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075, num_epochs = 3000, print_cost=True)
 
 
 # test_object.benchmark_model()
@@ -170,9 +179,9 @@ class TestNNetwork(object):
 ################################################
 
 
-test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075, num_iterations = 3000, print_cost=True)
+test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075, num_epochs = 3000, print_cost=True)
 
-#test_object = TestNNetwork([20, 7, 5, 1], ["tanh","tanh","tanh","sigmoid"], learning_rate = 0.0075, num_iterations = 3000, print_cost=True)
+#test_object = TestNNetwork([20, 7, 5, 1], ["tanh","tanh","tanh","sigmoid"], learning_rate = 0.0075, num_epochs = 3000, print_cost=True)
 
 
 test_object.run_test()

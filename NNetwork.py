@@ -10,12 +10,11 @@ import scipy
 from PIL import Image
 from scipy import ndimage
 import copy
-
+import math
 
 
 class NNetwork(object):
 
-    
     def __init__(self, layer_dims, layer_types, X, Y, use_dropout = False, use_l2_regularization = False):
         """Arguments: 
             layer_dims: a list of input layer and hidden layer sizes 
@@ -37,79 +36,87 @@ class NNetwork(object):
         self.caches         = {}    # keys: "Zl" and "Al" for the input and output activation
         # self.caches['A0']   = X     # input layer
         self.grads          = {}    # keeps the calculated gradients of the cost wrt weights. keys "dWl", "dbl"
-        self.X              = X
-        self.Y              = Y
-        self.x_size         = X.shape[0] # dimension of input data
-        self.M              = X.shape[1] # size of training data set
+        # self.X              = X
+        # self.Y              = Y
+        # self.x_size         = X.shape[0] # dimension of input data
+        # self.M              = X.shape[1] # size of training data set
         self.writeCaches    = True
         self.l_relu_epsilon = 0.01
+        # grad check is only for debugging - very slow
         self.run_grad_check = False
+        # drop out parameters
         self.use_dropout    = use_dropout
         self.keep_probs     = np.ones(self.num_layers)*0.8
         self.keep_probs[0]  = 1.0
         self.keep_probs[self.num_layers-1] = 1.0
+        # L2 regularization
         self.l2_reg         = use_l2_regularization
         self.lambd          = 10.0
-        self.mini_batch     = False
-        self.batch_size     = X.shape[1]
-        if self.mini_batch:
-            self.batch_size = 100
-        
 
-
-    def fit_model(self, batchX, batchY, learning_rate = 0.0075, num_iterations = 3000, print_cost=True):#lr was 0.009
-        """Implements the L-layer neural network
+    def fit_model(self, X, Y, mini_batch_size = 128, optimization_mode = "adam", learning_rate = 0.0075, num_epochs = 3000, print_cost=True, seed = 0):
+        """Implements the L-layer neural network training
             Arguments:
+            X, Y - training dataset
+            mini_batch_size - size of the mini-batch
+            optimization_mode - "adam" , "gradient_descend", "momentum", "nesterov_momentum", "rmsprop", "nadam"
             learning_rate -- learning rate of the gradient descent update rule
-            num_iterations -- number of iterations of the optimization loop
+            num_epochs -- number of epochs of the optimization loop
             print_cost -- if True, it prints the cost every 100 steps
             Returns:
             parameters -- parameters learnt by the model. They can then be used to predict.
             """
-        self.caches['A0'] = batchX
-        tic=time.process_time()
+
+        tic = time.process_time()
         np.random.seed(1)
         self.parameters = self.initialize_parameters()
         # keep track of cost
         costs = []
-    
+
         # Parameters initialization.
         # parameters = initialize_parameters_deep(layers_dims)
-    
+
         # Loop (gradient descent)
-        for i in range(0, num_iterations):
-            # Forward propagation: 
-            self.forward_pass(batchX)
-            
-            # Compute cost.
-            L = self.num_layers-1 # number of
-            # use only if sigmoid explodes
-            if self.use_dropout:
-                self.caches["A" + str(L)] = np.minimum(np.maximum(self.caches["A"+str(L)], 0.00000001), 0.99999999)
-            cost = self.compute_cost(self.caches["A"+str(L)], batchY)
-            # Backward propagation.
-            self.grads = self.backward_pass(batchY)
+        for i in range(num_epochs):
+            #increment seed to achhieve different reshuffle
+            seed = seed + 1
+            # get the minibatches
+            minibatches = self.random_mini_batches(X, Y, mini_batch_size, seed)
+            minibatch_counter = 0
+            for minibatch in minibatches:
+                minibatch_counter = minibatch_counter + 1
+                # Select a minibatch
+                (minibatch_X, minibatch_Y) = minibatch
+                # Forward propagation:
+                self.forward_pass(minibatch_X)
 
+                # Compute cost.
+                L = self.num_layers - 1  # number of
+                # use only if sigmoid explodes
+                #if self.use_dropout:
+                self.caches["A" + str(L)] = np.minimum(np.maximum(self.caches["A" + str(L)], 0.00000001), 0.99999999)
+                cost = self.compute_cost(self.caches["A" + str(L)], minibatch_Y)
+                # Backward propagation.
+                self.grads = self.backward_pass(minibatch_Y)
 
-            # Update parameters.
-            self.update_parameters(self.grads, learning_rate)
-                
-            # Print the cost every 100 training example
-            if print_cost and i % 100 == 0:
-                print ("Cost after iteration %i: %f" %(i, cost))
-            #if print_cost and i % 100 == 0:
-            costs.append(cost)
-            
+                # Update parameters.
+                self.update_parameters(self.grads, learning_rate)
+
+                # Print the cost every 100 training example and every minibatch
+                if print_cost and i % 100 == 0:
+                    print("Cost after epoch %i, minibatch %i: %f" % (i, minibatch_counter, cost))
+                # if print_cost and i % 100 == 0:
+                costs.append(cost)
+
         # plot the cost
         plt.plot(np.squeeze(costs))
         plt.ylabel('cost')
         plt.xlabel('iterations (per tens)')
         plt.title("Learning rate =" + str(learning_rate))
         plt.show()
-        toc=time.process_time()
-        print("Network trained in " + str(1000*(toc - tic)) + "ms")
+        toc = time.process_time()
+        print("Network trained in " + str(1000 * (toc - tic)) + "ms")
         return self.parameters, costs
-   
+
     def initialize_parameters(self):
         """
             Arguments:
@@ -134,7 +141,7 @@ class NNetwork(object):
             
         return parameters
     
-    def forward_pass(self, X):
+    def forward_pass(self, batchX):
         """
             Implements the forward propagation
 
@@ -146,7 +153,8 @@ class NNetwork(object):
         """
         
         # self.caches = {}
-        A = X
+        self.caches['A0'] = batchX
+        A = batchX
 
         for l in range(1, self.num_layers):
             A_prev = A
@@ -440,7 +448,7 @@ class NNetwork(object):
             """
         assert Xn.shape[1] == Yn.shape[1], "nb x-examples  does not match nb y examples"
         m = Xn.shape[1] # nb of examples
-        assert Xn.shape[0]==self.X.shape[0], "data shape does not match input layer"
+        # assert Xn.shape[0]==self.X.shape[0], "data shape does not match input layer"
         predict = np.zeros((1,m))
     
         # Forward propagation
@@ -575,21 +583,73 @@ class NNetwork(object):
         for a in self.keep_probs:
             assert ( (a>0.0) and (a <= 1.0) ), "Invalid keep_probs value. Must be strictly greater than 0 and smaller or equal than 1.0"
 
+    def random_mini_batches(self, X, Y, mini_batch_size=128, seed=0):
+        """
+        Creates a list of random minibatches from (X, Y)
 
-    def gradient_check(self,  epsilon = 1e-7):
+        Arguments:
+        X -- input data, of shape (input size, number of examples)
+        Y -- true "label" vector (1  / 0 ), of shape (1, number of examples)
+        mini_batch_size -- size of the mini-batches, integer
+
+        Returns:
+        mini_batches -- list of synchronous (mini_batch_X, mini_batch_Y)
+        """
+        np.random.seed(seed)
+        m = X.shape[1]  # number of training examples
+        mini_batches = []
+
+        num_complete_minibatches = math.floor(
+            m / mini_batch_size)  # number of mini batches of size mini_batch_size in the partitionning
+
+        if num_complete_minibatches<2:
+            mini_batches.append((X,Y))
+        else:
+            #  Shuffle (X, Y)
+            permutation = list(np.random.permutation(m))
+            shuffled_X = X[:, permutation]
+            shuffled_Y = Y[:, permutation].reshape((1, m))
+
+            #  Partition (shuffled_X, shuffled_Y). Minus the end case.
+
+            for k in range(0, num_complete_minibatches):
+                mini_batch_X = shuffled_X[:, k * mini_batch_size:(k + 1) * mini_batch_size]
+                mini_batch_Y = shuffled_Y[:, k * mini_batch_size:(k + 1) * mini_batch_size]
+                mini_batch = (mini_batch_X, mini_batch_Y)
+                mini_batches.append(mini_batch)
+
+            # Handling the end case (last mini-batch < mini_batch_size)
+            if m % mini_batch_size != 0:
+                mini_batch_X = shuffled_X[:, num_complete_minibatches * mini_batch_size:]
+                mini_batch_Y = shuffled_Y[:, num_complete_minibatches * mini_batch_size:]
+                mini_batch = (mini_batch_X, mini_batch_Y)
+                mini_batches.append(mini_batch)
+
+        return mini_batches
+
+
+
+
+
+
+
+
+
+
+    def gradient_check(self,  batchX, batchY, epsilon = 1e-7):
         """ Implements a gradient checking routine to verify the backprop implementation"""
 
         # make a full forward and backward pass
         self.parameters = self.initialize_parameters()
 
         # Forward propagation:
-        self.forward_pass(self.X)
+        self.forward_pass(batchX)
 
         # Compute cost.
         L = self.num_layers - 1  # number of
-        cost = self.compute_cost(self.caches["A" + str(L)], self.Y)
+        cost = self.compute_cost(self.caches["A" + str(L)], batchY)
         # Backward propagation.
-        self.grads = self.backward_pass(self.Y)
+        self.grads = self.backward_pass(batchY)
 
         #calculate numerical gradient approximation
         for l in range(L):
@@ -604,10 +664,10 @@ class NNetwork(object):
                     parameters_plus["W" + str(l + 1)][i][j] += epsilon
                     parameters_minus["W" + str(l + 1)][i][j] -= epsilon
 
-                    A_plus = self.forward_pass_for_gradient_check(self.X, parameters_plus)
+                    A_plus = self.forward_pass_for_gradient_check(batchX, parameters_plus)
                     J_plus = self.compute_cost(A_plus, self.Y )
-                    A_minus = self.forward_pass_for_gradient_check(self.X, parameters_minus)
-                    J_minus = self.compute_cost(A_minus, self.Y)
+                    A_minus = self.forward_pass_for_gradient_check(batchX, parameters_minus)
+                    J_minus = self.compute_cost(A_minus, batchY)
                     gradapprox[i][j]=(J_plus - J_minus)/(2.0*epsilon)
                     # restore values
                     parameters_plus["W" + str(l + 1)][i][j] -= epsilon
@@ -636,10 +696,10 @@ class NNetwork(object):
                 # bump values
                 parameters_plus["b" + str(l + 1)][i,0] += epsilon
                 parameters_minus["b" + str(l + 1)][i,0] -= epsilon
-                A_plus = self.forward_pass_for_gradient_check(self.X, parameters_plus)
+                A_plus = self.forward_pass_for_gradient_check(batchX, parameters_plus)
                 J_plus = self.compute_cost(A_plus, self.Y)
-                A_minus = self.forward_pass_for_gradient_check(self.X, parameters_minus)
-                J_minus = self.compute_cost(A_minus, self.Y)
+                A_minus = self.forward_pass_for_gradient_check(batchX, parameters_minus)
+                J_minus = self.compute_cost(A_minus, batchY)
                 gradapprox[i][0] = (J_plus - J_minus) / (2.0 * epsilon)
                 # restore values
                 parameters_plus["b" + str(l + 1)][i,0] -= epsilon
