@@ -32,23 +32,31 @@ class NNetwork(object):
         self.layer_dims     = layer_dims
         self.layer_types    = layer_types
         assert len(layer_dims) == len(layer_types), "invalid layer specs!" 
-        self.parameters     = {} # self.initialize_parameters()
+
+        # parameters and caches
+        self.parameters     = {} # keeps the parameters of the nn. keys "bl" and "Wl"
         self.caches         = {}    # keys: "Zl" and "Al" for the input and output activation
-        # self.caches['A0']   = X     # input layer
         self.grads          = {}    # keeps the calculated gradients of the cost wrt weights. keys "dWl", "dbl"
-        # self.X              = X
-        # self.Y              = Y
-        # self.x_size         = X.shape[0] # dimension of input data
-        # self.M              = X.shape[1] # size of training data set
         self.writeCaches    = True
+
+        # momentum and gradient variance
+        self.momentum = {} # keeps the momentum for each parameter. keys "bl" and "Wl"
+        self.variance = {} # keeps the gradient second moment  for each parameter. keys "bl" and "Wl"
+        self.beta_momentum = 0.9
+        self.beta_variance = 0.99
+
+        # the leaky realu constant
         self.l_relu_epsilon = 0.01
+
         # grad check is only for debugging - very slow
         self.run_grad_check = False
+
         # drop out parameters
         self.use_dropout    = use_dropout
         self.keep_probs     = np.ones(self.num_layers)*0.8
         self.keep_probs[0]  = 1.0
         self.keep_probs[self.num_layers-1] = 1.0
+
         # L2 regularization
         self.l2_reg         = use_l2_regularization
         self.lambd          = 10.0
@@ -67,14 +75,17 @@ class NNetwork(object):
             """
 
         tic = time.process_time()
-        np.random.seed(1)
-        self.parameters = self.initialize_parameters()
+        np.random.seed(seed)
+        self.parameters, self.momentum, self.variance = self.initialize_parameters()
         # keep track of cost
         costs = []
 
         # Parameters initialization.
         # parameters = initialize_parameters_deep(layers_dims)
 
+        m = X.shape[1]
+        parameter_update_counter = 0
+        num_minibatches = math.floor(m / mini_batch_size) +1
         # Loop (gradient descent)
         for i in range(num_epochs):
             #increment seed to achhieve different reshuffle
@@ -82,8 +93,10 @@ class NNetwork(object):
             # get the minibatches
             minibatches = self.random_mini_batches(X, Y, mini_batch_size, seed)
             minibatch_counter = 0
+            minibatch_average_cost = 0.0
             for minibatch in minibatches:
                 minibatch_counter = minibatch_counter + 1
+                parameter_update_counter = parameter_update_counter + 1
                 # Select a minibatch
                 (minibatch_X, minibatch_Y) = minibatch
                 # Forward propagation:
@@ -99,13 +112,20 @@ class NNetwork(object):
                 self.grads = self.backward_pass(minibatch_Y)
 
                 # Update parameters.
-                self.update_parameters(self.grads, learning_rate)
+                self.update_parameters(self.grads, parameter_update_counter, learning_rate, optimization_mode)
 
                 # Print the cost every 100 training example and every minibatch
+                minibatch_average_cost += cost / num_minibatches
                 if print_cost and i % 100 == 0:
                     print("Cost after epoch %i, minibatch %i: %f" % (i, minibatch_counter, cost))
-                # if print_cost and i % 100 == 0:
                 costs.append(cost)
+            if print_cost and i % 100 == 0:
+                print("Average cost after epoch %i: %f" % (i, minibatch_average_cost))
+                # if print_cost and i % 100 == 0:
+
+
+
+
 
         # plot the cost
         plt.plot(np.squeeze(costs))
@@ -129,17 +149,25 @@ class NNetwork(object):
         """
         np.random.seed(1)
         parameters = {}
+        momentum = {}
+        variance = {}
 
         for l in range(1, self.num_layers):
             parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) / np.sqrt(self.layer_dims[l-1]) #*0.01
             #He initialization
             # parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) np.sqrt(2)/ np.sqrt((self.layer_dims[l-1] + self.layer_dims[l]) #*0.01
             parameters['b' + str(l)] = np.zeros((self.layer_dims[l], 1))
-        
-            assert(parameters['W' + str(l)].shape == (self.layer_dims[l], self.layer_dims[l-1])), "Arc weight matrices does not match the NN architecture"
-            assert(parameters['b' + str(l)].shape == (self.layer_dims[l], 1)), "Bias vector sizes does not match the NN architecture"
+
+            #initialize momentum and variance
+            momentum['W' + str(l)] = np.zeros(parameters['W' + str(l)].shape)
+            momentum['b' + str(l)] = np.zeros(parameters['b' + str(l)].shape)
+            variance['W' + str(l)] = np.zeros(parameters['W' + str(l)].shape)
+            variance['b' + str(l)] = np.zeros(parameters['b' + str(l)].shape)
+
+            #assert(parameters['W' + str(l)].shape == (self.layer_dims[l], self.layer_dims[l-1])), "Arc weight matrices does not match the NN architecture"
+            #assert(parameters['b' + str(l)].shape == (self.layer_dims[l], 1)), "Bias vector sizes does not match the NN architecture"
             
-        return parameters
+        return parameters, momentum, variance
     
     def forward_pass(self, batchX):
         """
@@ -409,8 +437,8 @@ class NNetwork(object):
         # assert (dZ.shape == Z.shape)
 
         return dZ
-    
-    def update_parameters(self,gradients, learning_rate):
+
+    def update_parameters(self,gradients, parameter_update_counter, learning_rate, optimization_mode = "adam", epsilon = 1e-8):
         """
             Update parameters using gradient descent
     
@@ -426,12 +454,58 @@ class NNetwork(object):
         L = self.num_layers-1  # the number of hidden layers
 
         # Update rule for each parameter.
-        weight_decay = 1.0
-        #if self.l2_reg:
-        #    weight_decay = max(0.1, 1.0 - learning_rate*self.lambd/self.batch_size)
+
         for l in range(L):
-            self.parameters["W" + str(l+1)] = weight_decay*self.parameters["W" + str(l+1)] - learning_rate * gradients["dW" + str(l+1)]
-            self.parameters["b" + str(l+1)] = self.parameters["b" + str(l+1)] - learning_rate * gradients["db" + str(l+1)]
+            #update momentum
+            self.momentum["W" + str(l + 1)] = self.beta_momentum * self.momentum["W" + str(l + 1)] \
+                                              + (1 - self.beta_momentum) * gradients["dW" + str(l+1)]
+            self.momentum["b" + str(l + 1)] = self.beta_momentum * self.momentum["b" + str(l + 1)] \
+                                               + (1 - self.beta_momentum) * gradients['db' + str(l + 1)]
+            #update variance
+            self.variance["W" + str(l + 1)] = self.beta_variance * self.variance["W" + str(l + 1)] \
+                                              + (1 - self.beta_variance) * np.multiply(gradients["dW" + str(l + 1)], gradients["dW" + str(l + 1)])
+            self.variance["b" + str(l + 1)] = self.beta_variance * self.variance["b" + str(l + 1)] \
+                                               + (1 - self.beta_variance) * np.multiply(gradients['db' + str(l + 1)],gradients['db' + str(l + 1)])
+
+            if optimization_mode == "gradient_descent":
+                self.parameters["W" + str(l+1)] = self.parameters["W" + str(l+1)] - learning_rate * gradients["dW" + str(l+1)]
+                self.parameters["b" + str(l+1)] = self.parameters["b" + str(l+1)] - learning_rate * gradients["db" + str(l+1)]
+
+            elif optimization_mode == "momentum":
+                self.parameters["W" + str(l + 1)] = self.parameters["W" + str(l + 1)] \
+                                                    - learning_rate * self.momentum["W" + str(l + 1)]
+                self.parameters["b" + str(l + 1)] = self.parameters["b" + str(l + 1)] \
+                                                    - learning_rate * self.momentum["b" + str(l + 1)]
+            elif optimization_mode == "adam":
+                # get bias correction terms
+                momentum_correction = 1.0
+                variance_correction = 1.0
+                if parameter_update_counter<20:
+                    momentum_correction  = 1.0/(1.0 - np.power(self.beta_momentum, parameter_update_counter))
+                    variance_correction = 1.0 / (1.0 - np.power(self.beta_variance, parameter_update_counter))
+
+                self.parameters["W" + str(l + 1)] = self.parameters["W" + str(l + 1)] \
+                                                    - learning_rate * \
+                                                    np.divide(self.momentum["W" + str(l + 1)]*momentum_correction,
+                                                    epsilon + np.sqrt(self.variance["W" + str(l + 1)]*variance_correction))
+                self.parameters["b" + str(l + 1)] = self.parameters["b" + str(l + 1)] \
+                                                    - learning_rate * \
+                                                    np.divide(self.momentum["b" + str(l + 1)]*momentum_correction,
+                                                    epsilon + np.sqrt(self.variance["b" + str(l + 1)]*variance_correction))
+            elif optimization_mode == "rmsprop":
+
+                self.parameters["W" + str(l + 1)] = self.parameters["W" + str(l + 1)] \
+                                                    - learning_rate * \
+                                                      np.divide(gradients["dW" + str(l+1)],
+                                                                epsilon + np.sqrt(self.variance["W" + str(l + 1)] ))
+                self.parameters["b" + str(l + 1)] = self.parameters["b" + str(l + 1)] \
+                                                    - learning_rate * \
+                                                      np.divide(gradients["db" + str(l+1)],
+                                                                epsilon + np.sqrt(self.variance["b" + str(l + 1)] ))
+            else:
+                print("The provided  optimization mode is not valid!!! ")
+
+
 
         return self.parameters
 
@@ -452,14 +526,14 @@ class NNetwork(object):
         predict = np.zeros((1,m))
     
         # Forward propagation
-        original_chaches_mode = self.writeCaches
+        original_caches_mode = self.writeCaches
         self.writeCaches = False
         probs = self.forward_pass(Xn)
-        self.writeCaches = original_chaches_mode
+        self.writeCaches = original_caches_mode
     
-        # convert probas to 0/1 predictions
-        predict[probs<=0.5]=0.0
-        predict[probs>0.5]=1.0
+        # convert probabilities to 0/1 predictions
+        predict[probs <= 0.5] = 0.0
+        predict[probs > 0.5] = 1.0
     
         #for i in range(0, probs.shape[1]):
         #    if probas[0,i] > 0.5:
@@ -469,11 +543,10 @@ class NNetwork(object):
     
         #print results
         print ("predictions/true labels: " + str(predict)+" "+str(Yn))
-        print("Accuracy: "  + str(np.sum((predict == Yn)/m)))
+        print("Accuracy: " + str(np.sum((predict == Yn)/m)))
         
         return predict
 
-    
     def linear_activation_forward(self,A_prev, W, b, activation):
         """
             Implement the forward propagation for the LINEAR->ACTIVATION layer
@@ -496,15 +569,14 @@ class NNetwork(object):
         elif activation == "relu":
             A = self.relu(Z)
         elif activation == "l_relu":
-            A = self.l_relu(Z = Z)
+            A = self.l_relu(Z=Z)
         elif activation == "tanh":
-            A = self.tanh_np(Z = Z)
+            A = self.tanh_np(Z=Z)
     
         assert (A.shape == (W.shape[0], A_prev.shape[1]))
         assert (Z.shape == A.shape)
         return A, Z
-    
-    
+
     def sigmoid(self,Z):
         """
             Implements the sigmoid activation in numpy
@@ -535,7 +607,7 @@ class NNetwork(object):
         # assert(A.shape == Z.shape)
         return A
 
-    def relu(self,Z):
+    def relu(self, Z):
         """
             Implement the RELU function.
 
@@ -550,7 +622,7 @@ class NNetwork(object):
         # assert(A.shape == Z.shape)
         return A
     
-    def l_relu(self,Z):
+    def l_relu(self, Z):
         """
             Implement the leaky RELU function.
 
@@ -561,7 +633,7 @@ class NNetwork(object):
             A -- Post-activation parameter, of the same shape as Z
             """
         eps = self.l_relu_epsilon
-        A = np.maximum(eps*Z,Z)
+        A = np.maximum(eps*Z, Z)
         # assert(A.shape == Z.shape)
         return A
 
@@ -626,15 +698,6 @@ class NNetwork(object):
                 mini_batches.append(mini_batch)
 
         return mini_batches
-
-
-
-
-
-
-
-
-
 
     def gradient_check(self,  batchX, batchY, epsilon = 1e-7):
         """ Implements a gradient checking routine to verify the backprop implementation"""
