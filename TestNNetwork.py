@@ -9,9 +9,12 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 import scipy
+import scipy.io
 from PIL import Image
 from scipy import ndimage
-import NNetwork 
+import NNetwork
+import sklearn
+import sklearn.datasets
        
 class TestNNetwork(object):
    def __init__(self, hidden_layer_sizes, hidden_layer_types, learning_rate = 0.0075, num_epochs = 3000
@@ -26,7 +29,9 @@ class TestNNetwork(object):
             Returns:
             parameters -- parameters learnt by the model. They can then be used to predict.
             """
-       self.train_x, self.train_y, self.test_x, self.test_y, self.classes = self.load_cat_pics_data()
+       # self.train_x, self.train_y, self.test_x, self.test_y, self.classes = self.load_cat_pics_data()
+       self.train_x, self.train_y, self.test_x, self.test_y = self.load_2D_dataset()
+       self.train_x, self.train_y, self.test_x, self.test_y = self.load_random_2D_dataset()
        self.layer_dims = [self.train_x.shape[0]] + hidden_layer_sizes
        self.layer_types = ["sigmoid"]+hidden_layer_types
        self.learning_rate = learning_rate
@@ -51,11 +56,19 @@ class TestNNetwork(object):
       #                         num_iterations = self.num_iterations,
       #                         print_cost=self.print_cost)
 
+      #network_object.fit_model(X=self.train_x,
+      #                         Y=self.train_y,
+      #                         mini_batch_size= 128,  # self.train_x.shape[1],
+      #                         optimization_mode="gradient_descend",  # "gradient_descend","momentum", "adam"
+      #                         learning_rate= 0.0075,   # self.learning_rate,0.0075
+      #                         num_epochs=self.num_epochs,
+      #                         print_cost=self.print_cost)
+
       network_object.fit_model(X=self.train_x,
                                Y=self.train_y,
-                               mini_batch_size= 16,  # self.train_x.shape[1],
-                               optimization_mode="momentum",
-                               learning_rate= 0.001,   # self.learning_rate,
+                               mini_batch_size=64,  # self.train_x.shape[1],
+                               optimization_mode="adam",  # "gradient_descend","momentum", "adam"
+                               learning_rate=0.0007,  # self.learning_rate,0.0075
                                num_epochs=self.num_epochs,
                                print_cost=self.print_cost)
 
@@ -86,7 +99,7 @@ class TestNNetwork(object):
                                                    Y = train_y,
                                                    mini_batch_size=train_y.shape[1],
                                                    optimization_mode="gradient_descend",
-                                                   learning_rate=0.0075,
+                                                   learning_rate=0.01,
                                                    num_epochs=self.num_epochs,
                                                    print_cost=self.print_cost)
 
@@ -126,6 +139,31 @@ class TestNNetwork(object):
       assert np.abs(costs[2900] - 0.075444)<0.000001, "cost is different. step: 2900"
       print("BENCHMARK PASSED!!!")
 
+   def load_random_2D_dataset(self):
+       np.random.seed(3)
+       train_X, train_Y = sklearn.datasets.make_moons(n_samples=300, noise=.2)  # 300 #0.2
+       # Visualize the data
+       plt.scatter(train_X[:, 0], train_X[:, 1], c=train_Y, s=40, cmap=plt.cm.Spectral);
+       train_X = train_X.T
+       train_Y = train_Y.reshape((1, train_Y.shape[0]))
+
+       return train_X, train_Y,train_X, train_Y
+
+
+
+
+   def load_2D_dataset(self):
+       data = scipy.io.loadmat('datasets/data.mat')
+       train_X = data['X'].T
+       train_Y = data['y'].T
+       test_X = data['Xval'].T
+       test_Y = data['yval'].T
+
+       # plt.scatter(train_X[0, :], train_X[1, :], c=train_Y, s=40, cmap=plt.cm.Spectral);
+       #classes = np.array(test_dataset["list_classes"][:])  # the list of classes
+
+       return train_X, train_Y, test_X, test_Y
+
    def load_cat_pics_data(self):
       """load cat vs no cat testing data
             Arguments:
@@ -151,8 +189,16 @@ class TestNNetwork(object):
       test_x_flatten = test_x_orig.reshape(test_x_orig.shape[0], -1).T
 
       # Standardize data to have feature values between 0 and 1.
-      train_x = train_x_flatten/255.
-      test_x = test_x_flatten/255.
+      size = train_x_flatten.shape[1]
+      mean = np.sum(train_x_flatten, axis=1, keepdims = True)/size
+      train_x = train_x_flatten - mean
+      test_x = test_x_flatten - mean
+      stdev = np.sqrt(np.sum(np.multiply(train_x, train_x), axis=1, keepdims=True) / (size - 1))
+      train_x = np.divide( train_x, stdev)
+      test_x = np.divide( test_x, stdev)
+
+      #train_x = train_x_flatten/255.
+      #test_x = test_x_flatten/255.
     
       return train_x, train_y, test_x, test_y, classes
 
@@ -179,7 +225,10 @@ class TestNNetwork(object):
 ################################################
 
 
-test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075,   num_epochs = 3000, print_cost=True)
+#test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075,   num_epochs = 3000, print_cost=True)
+
+test_object = TestNNetwork([5, 2, 1], ["relu","relu","sigmoid"], learning_rate = 0.0007,   num_epochs = 10000, print_cost=True)
+
 
 #test_object = TestNNetwork([20, 7, 5, 1], ["tanh","tanh","tanh","sigmoid"], learning_rate = 0.0075, num_epochs = 3000, print_cost=True)
 

@@ -43,7 +43,7 @@ class NNetwork(object):
         self.momentum = {} # keeps the momentum for each parameter. keys "bl" and "Wl"
         self.variance = {} # keeps the gradient second moment  for each parameter. keys "bl" and "Wl"
         self.beta_momentum = 0.9
-        self.beta_variance = 0.99
+        self.beta_variance = 0.999
 
         # the leaky realu constant
         self.l_relu_epsilon = 0.01
@@ -61,7 +61,7 @@ class NNetwork(object):
         self.l2_reg         = use_l2_regularization
         self.lambd          = 10.0
 
-    def fit_model(self, X, Y, mini_batch_size = 128, optimization_mode = "adam", learning_rate = 0.0075, num_epochs = 3000, print_cost=True, seed = 0):
+    def fit_model(self, X, Y, mini_batch_size = 128, optimization_mode = "adam", learning_rate = 0.0075, num_epochs = 3000, print_cost=True, seed = 10):
         """Implements the L-layer neural network training
             Arguments:
             X, Y - training dataset
@@ -75,11 +75,11 @@ class NNetwork(object):
             """
 
         tic = time.process_time()
-        np.random.seed(seed)
+
         self.parameters, self.momentum, self.variance = self.initialize_parameters()
         # keep track of cost
         costs = []
-
+        np.random.seed(seed)
         # Parameters initialization.
         # parameters = initialize_parameters_deep(layers_dims)
 
@@ -116,16 +116,15 @@ class NNetwork(object):
 
                 # Print the cost every 100 training example and every minibatch
                 minibatch_average_cost += cost / num_minibatches
-                if print_cost and i % 100 == 0:
-                    print("Cost after epoch %i, minibatch %i: %f" % (i, minibatch_counter, cost))
-                costs.append(cost)
+                #if print_cost and i % 1000 == 0:
+                #    print("Cost after epoch %i, minibatch %i: %f" % (i, minibatch_counter, cost))
+            if print_cost and i % 1000 == 0:
+                print("Cost after epoch %i: %f" % (i, cost))
             if print_cost and i % 100 == 0:
-                print("Average cost after epoch %i: %f" % (i, minibatch_average_cost))
+                costs.append(cost)
+           # if print_cost and i % 1000 == 0:
+        #    print("Average cost after epoch %i: %f" % (i, minibatch_average_cost))
                 # if print_cost and i % 100 == 0:
-
-
-
-
 
         # plot the cost
         plt.plot(np.squeeze(costs))
@@ -147,13 +146,13 @@ class NNetwork(object):
                     Wl -- weight matrix of shape (layer_dims[l], layer_dims[l-1])
                     bl -- bias vector of shape (layer_dims[l], 1)
         """
-        np.random.seed(1)
+        np.random.seed(3)
         parameters = {}
         momentum = {}
         variance = {}
 
         for l in range(1, self.num_layers):
-            parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) / np.sqrt(self.layer_dims[l-1]) #*0.01
+            parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) * np.sqrt(2.0/self.layer_dims[l-1]) #*0.01
             #He initialization
             # parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) np.sqrt(2)/ np.sqrt((self.layer_dims[l-1] + self.layer_dims[l]) #*0.01
             parameters['b' + str(l)] = np.zeros((self.layer_dims[l], 1))
@@ -166,7 +165,7 @@ class NNetwork(object):
 
             #assert(parameters['W' + str(l)].shape == (self.layer_dims[l], self.layer_dims[l-1])), "Arc weight matrices does not match the NN architecture"
             #assert(parameters['b' + str(l)].shape == (self.layer_dims[l], 1)), "Bias vector sizes does not match the NN architecture"
-            
+
         return parameters, momentum, variance
     
     def forward_pass(self, batchX):
@@ -221,7 +220,12 @@ class NNetwork(object):
         # L = self.num_layers-1  # the number of hidden layers
         # assert ('A'+str(L) in self.caches), "Cost is not defined as model ouput has not been calculated!" 
         # Compute loss from AL and Y.
-        cost = (1./m) * (-np.dot(y, np.log(model_output.T)) - np.dot(1-y, np.log(1-model_output.T)))
+        #cost = (1./m) * (-np.dot(y, np.log(model_output.T)) - np.dot(1-y, np.log(1-model_output.T)))
+
+        logprobs = np.multiply(-np.log(model_output), y) + np.multiply(-np.log(1 - model_output), 1 - y)
+        cost = 1. / m * np.sum(logprobs)
+
+
     
         cost = np.squeeze(cost)      # To make sure your cost's shape is what we expect (e.g. this turns [[17]] into 17).
         assert(cost.shape == ())
@@ -457,55 +461,31 @@ class NNetwork(object):
 
         for l in range(L):
             #update momentum
-            self.momentum["W" + str(l + 1)] = self.beta_momentum * self.momentum["W" + str(l + 1)] \
-                                              + (1 - self.beta_momentum) * gradients["dW" + str(l+1)]
-            self.momentum["b" + str(l + 1)] = self.beta_momentum * self.momentum["b" + str(l + 1)] \
-                                               + (1 - self.beta_momentum) * gradients['db' + str(l + 1)]
+            self.momentum["W" + str(l + 1)] = self.beta_momentum * self.momentum["W" + str(l + 1)] + (1 - self.beta_momentum) * gradients["dW" + str(l+1)]
+            self.momentum["b" + str(l + 1)] = self.beta_momentum * self.momentum["b" + str(l + 1)] + (1 - self.beta_momentum) * gradients['db' + str(l+1)]
             #update variance
-            self.variance["W" + str(l + 1)] = self.beta_variance * self.variance["W" + str(l + 1)] \
-                                              + (1 - self.beta_variance) * np.multiply(gradients["dW" + str(l + 1)], gradients["dW" + str(l + 1)])
-            self.variance["b" + str(l + 1)] = self.beta_variance * self.variance["b" + str(l + 1)] \
-                                               + (1 - self.beta_variance) * np.multiply(gradients['db' + str(l + 1)],gradients['db' + str(l + 1)])
+            self.variance["W" + str(l + 1)] = self.beta_variance * self.variance["W" + str(l + 1)] + (1 - self.beta_variance) * np.multiply(gradients["dW" + str(l + 1)], gradients["dW" + str(l + 1)])
+            self.variance["b" + str(l + 1)] = self.beta_variance * self.variance["b" + str(l + 1)] + (1 - self.beta_variance) * np.multiply(gradients['db' + str(l + 1)],gradients['db' + str(l + 1)])
+            # get bias correction terms
+            momentum_correction = 1.0 - np.power(self.beta_momentum, parameter_update_counter)
+            variance_correction = 1.0 - np.power(self.beta_variance, parameter_update_counter)
 
-            if optimization_mode == "gradient_descent":
-                self.parameters["W" + str(l+1)] = self.parameters["W" + str(l+1)] - learning_rate * gradients["dW" + str(l+1)]
-                self.parameters["b" + str(l+1)] = self.parameters["b" + str(l+1)] - learning_rate * gradients["db" + str(l+1)]
 
-            elif optimization_mode == "momentum":
-                self.parameters["W" + str(l + 1)] = self.parameters["W" + str(l + 1)] \
-                                                    - learning_rate * self.momentum["W" + str(l + 1)]
-                self.parameters["b" + str(l + 1)] = self.parameters["b" + str(l + 1)] \
-                                                    - learning_rate * self.momentum["b" + str(l + 1)]
+            addOnW = gradients["dW" + str(l+1)]
+            addOnb = gradients["db" + str(l+1)]
+
+            if optimization_mode == "momentum":
+                addOnW =  self.momentum["W" + str(l + 1)]
+                addOnb =  self.momentum["b" + str(l + 1)]
             elif optimization_mode == "adam":
-                # get bias correction terms
-                momentum_correction = 1.0
-                variance_correction = 1.0
-                if parameter_update_counter<20:
-                    momentum_correction  = 1.0/(1.0 - np.power(self.beta_momentum, parameter_update_counter))
-                    variance_correction = 1.0 / (1.0 - np.power(self.beta_variance, parameter_update_counter))
-
-                self.parameters["W" + str(l + 1)] = self.parameters["W" + str(l + 1)] \
-                                                    - learning_rate * \
-                                                    np.divide(self.momentum["W" + str(l + 1)]*momentum_correction,
-                                                    epsilon + np.sqrt(self.variance["W" + str(l + 1)]*variance_correction))
-                self.parameters["b" + str(l + 1)] = self.parameters["b" + str(l + 1)] \
-                                                    - learning_rate * \
-                                                    np.divide(self.momentum["b" + str(l + 1)]*momentum_correction,
-                                                    epsilon + np.sqrt(self.variance["b" + str(l + 1)]*variance_correction))
+                addOnW =  np.divide(self.momentum["W" + str(l + 1)]/momentum_correction, epsilon + np.sqrt(self.variance["W" + str(l + 1)]/variance_correction))
+                addOnb =  np.divide(self.momentum["b" + str(l + 1)]/momentum_correction, epsilon + np.sqrt(self.variance["b" + str(l + 1)]/variance_correction))
             elif optimization_mode == "rmsprop":
+                addOnW =  np.divide(gradients["dW" + str(l+1)],epsilon + np.sqrt(self.variance["W" + str(l + 1)]/variance_correction ))
+                addOnb =  np.divide(gradients["db" + str(l+1)],epsilon + np.sqrt(self.variance["b" + str(l + 1)]/variance_correction  ))
 
-                self.parameters["W" + str(l + 1)] = self.parameters["W" + str(l + 1)] \
-                                                    - learning_rate * \
-                                                      np.divide(gradients["dW" + str(l+1)],
-                                                                epsilon + np.sqrt(self.variance["W" + str(l + 1)] ))
-                self.parameters["b" + str(l + 1)] = self.parameters["b" + str(l + 1)] \
-                                                    - learning_rate * \
-                                                      np.divide(gradients["db" + str(l+1)],
-                                                                epsilon + np.sqrt(self.variance["b" + str(l + 1)] ))
-            else:
-                print("The provided  optimization mode is not valid!!! ")
-
-
+            self.parameters["W" + str(l + 1)] = self.parameters["W" + str(l + 1)] - learning_rate * addOnW
+            self.parameters["b" + str(l + 1)] = self.parameters["b" + str(l + 1)] - learning_rate * addOnb
 
         return self.parameters
 
@@ -803,3 +783,4 @@ class NNetwork(object):
                                                   activation=self.layer_types[l])
 
         return A
+
