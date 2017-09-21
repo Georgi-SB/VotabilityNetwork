@@ -15,7 +15,7 @@ import math
 
 class NNetwork(object):
 
-    def __init__(self, layer_dims, layer_types, X, Y, use_dropout = False, use_l2_regularization = False):
+    def __init__(self, layer_dims, layer_types,   use_dropout = False, use_l2_regularization = False):
         """Arguments: 
             layer_dims: a list of input layer and hidden layer sizes 
             layer_types: a list of strings - the first element is the input and the 
@@ -61,7 +61,7 @@ class NNetwork(object):
         self.l2_reg         = use_l2_regularization
         self.lambd          = 10.0
 
-    def fit_model(self, X, Y, mini_batch_size = 128, optimization_mode = "adam", learning_rate = 0.0075, num_epochs = 3000, print_cost=True, seed = 10):
+    def fit_model(self, X, Y, mini_batch_size = 128, optimization_mode = "adam", learning_rate = 0.0075, num_epochs = 3000, print_cost=True, seed = 100):
         """Implements the L-layer neural network training
             Arguments:
             X, Y - training dataset
@@ -75,13 +75,11 @@ class NNetwork(object):
             """
 
         tic = time.process_time()
-
+        # Parameters initialization.
         self.parameters, self.momentum, self.variance = self.initialize_parameters()
         # keep track of cost
         costs = []
         np.random.seed(seed)
-        # Parameters initialization.
-        # parameters = initialize_parameters_deep(layers_dims)
 
         m = X.shape[1]
         parameter_update_counter = 0
@@ -118,7 +116,7 @@ class NNetwork(object):
                 minibatch_average_cost += cost / num_minibatches
                 #if print_cost and i % 1000 == 0:
                 #    print("Cost after epoch %i, minibatch %i: %f" % (i, minibatch_counter, cost))
-            if print_cost and i % 1000 == 0:
+            if print_cost and i % 100 == 0:
                 print("Cost after epoch %i: %f" % (i, cost))
             if print_cost and i % 100 == 0:
                 costs.append(cost)
@@ -146,13 +144,13 @@ class NNetwork(object):
                     Wl -- weight matrix of shape (layer_dims[l], layer_dims[l-1])
                     bl -- bias vector of shape (layer_dims[l], 1)
         """
-        np.random.seed(3)
+        np.random.seed(1)
         parameters = {}
         momentum = {}
         variance = {}
 
         for l in range(1, self.num_layers):
-            parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) * np.sqrt(2.0/self.layer_dims[l-1]) #*0.01
+            parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) * np.sqrt(2.0/self.layer_dims[l-1]) #*0.01   *np.sqrt(1.0/self.layer_dims[l-1])
             #He initialization
             # parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) np.sqrt(2)/ np.sqrt((self.layer_dims[l-1] + self.layer_dims[l]) #*0.01
             parameters['b' + str(l)] = np.zeros((self.layer_dims[l], 1))
@@ -167,6 +165,7 @@ class NNetwork(object):
             #assert(parameters['b' + str(l)].shape == (self.layer_dims[l], 1)), "Bias vector sizes does not match the NN architecture"
 
         return parameters, momentum, variance
+
     
     def forward_pass(self, batchX):
         """
@@ -784,3 +783,23 @@ class NNetwork(object):
 
         return A
 
+
+    @staticmethod
+    def  normalize_input_data(train_x, test_x):
+        """
+            Normalize the input data
+
+                Arguments:
+                X -- input features as np.array
+
+                Returns:
+                model output -- output from the last hidden layer
+        """
+        size = train_x.shape[1]
+        mean = np.sum(train_x, axis=1, keepdims=True) / size
+        train_x = train_x - mean
+        test_x = test_x - mean
+        stdev = np.sqrt(np.sum(np.multiply(train_x, train_x), axis=1, keepdims=True) / (size - 1))
+        train_x = np.divide(train_x, stdev)
+        test_x = np.divide(test_x, stdev)
+        return train_x, test_x
