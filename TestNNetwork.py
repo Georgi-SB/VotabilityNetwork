@@ -70,9 +70,17 @@ class TestNNetwork(object):
       #                         print_cost=self.print_cost)
 
 
+      # network_object.fit_model(X=self.train_x,
+      #                          Y=self.train_y,
+      #                          mini_batch_size=64,  # self.train_x.shape[1],
+      #                          optimization_mode="gradient_descend",  # "gradient_descend","momentum", "adam"
+      #                          learning_rate=0.0075,  # self.learning_rate,0.0075
+      #                          num_epochs=self.num_epochs,
+      #                          print_cost=self.print_cost)
+
       network_object.fit_model(X=self.train_x,
                                Y=self.train_y,
-                               mini_batch_size=64,  # self.train_x.shape[1],
+                               mini_batch_size= self.train_x.shape[1],
                                optimization_mode="gradient_descend",  # "gradient_descend","momentum", "adam"
                                learning_rate=0.0075,  # self.learning_rate,0.0075
                                num_epochs=self.num_epochs,
@@ -230,7 +238,7 @@ class TestNNetwork(object):
 ################################################
 
 
-test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075,   num_epochs = 3000, print_cost=True, dataset="cats")
+test_object = TestNNetwork([20, 7, 5, 1], ["selu","selu","selu","sigmoid"], learning_rate = 0.0075,   num_epochs = 3000, print_cost=True, dataset="cats")
 
 #test_object = TestNNetwork([5, 2, 1], ["relu","relu","sigmoid"], learning_rate = 0.0007,   num_epochs = 10000, print_cost=True)
 

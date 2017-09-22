@@ -310,6 +310,8 @@ class NNetwork(object):
             dZ = self.l_relu_backward(dA, layer)
         elif activation == "tanh":
             dZ = self.tanh_backward(dA, layer)
+        elif activation == "selu":
+            dZ = self.selu_backward(dA, layer)
 
         if self.use_dropout and (layer != 0) and (layer != (self.num_layers-1)):
             dZ = np.multiply(dZ, self.caches["D"+str(layer)])
@@ -419,6 +421,24 @@ class NNetwork(object):
     
         return dZ
 
+    def selu_backward(self, dA, l):
+        """
+            Implements the backward propagation for a single SELU unit.
+
+            Arguments:
+            dA -- post-activation gradient, of any shape
+             l -- layer index for the cache (activation input Zl is needed) for computing backward propagation efficiently
+
+            Returns:
+            Z -- Gradient of the cost with respect to Z
+        """
+        alpha = 1.6732632423543772848170429916717
+        scale = 1.0507009873554804934193349852946
+        Z = self.caches['Z' + str(l)]
+        Al = self.caches['A' + str(l)]
+        return np.multiply(dA,  np.where(Z >= 0.0, scale*alpha , Al + scale*alpha))
+
+
     def tanh_backward(self, dA, l):
         """
             Implements the backward propagation for a single SIGMOID unit.
@@ -434,12 +454,12 @@ class NNetwork(object):
         #Z = self.caches['Z' + str(l)]
         s = self.caches['A' + str(l)]
 
-        #s = 1 / (1 + np.exp(-Z))
-        dZ = 1.0-np.multiply(s , s)
+        #dZ = np.multiply(dA,1.0-np.multiply(s , s))
+        return  np.multiply(dA, 1.0-np.multiply(s, s))
 
         # assert (dZ.shape == Z.shape)
 
-        return dZ
+
 
     def update_parameters(self,gradients, parameter_update_counter, learning_rate, optimization_mode = "adam", epsilon = 1e-8):
         """
@@ -540,7 +560,7 @@ class NNetwork(object):
             A -- the output of the activation function, also called the post-activation value 
             Z -- the activation/layer input stored for computing the backward pass efficiently
              """
-        assert (activation == "sigmoid" or activation=="relu" or activation=="tanh" or activation=="l_relu") , "Invalid activation string"
+        assert (activation == "sigmoid" or activation=="relu" or activation=="selu"or activation=="tanh" or activation=="l_relu") , "Invalid activation string"
         
         Z = W.dot(A_prev) + b # np.dot(W,A)+b
         if activation == "sigmoid":
@@ -551,6 +571,8 @@ class NNetwork(object):
             A = self.l_relu(Z=Z)
         elif activation == "tanh":
             A = self.tanh_np(Z=Z)
+        elif activation == "selu":
+            A = self.selu(Z=Z)
     
         assert (A.shape == (W.shape[0], A_prev.shape[1]))
         assert (Z.shape == A.shape)
@@ -615,6 +637,23 @@ class NNetwork(object):
         A = np.maximum(eps*Z, Z)
         # assert(A.shape == Z.shape)
         return A
+
+    def selu(self, Z):
+        """
+            Implement the self normalizing activation,  SELU function.
+
+            Arguments:
+            Z -- Output of the linear layer, of any shape
+
+            Returns:
+            A -- Post-activation parameter, of the same shape as Z
+            """
+
+
+        alpha = 1.6732632423543772848170429916717
+        scale = 1.0507009873554804934193349852946
+        return scale * np.where(Z >= 0.0, Z, alpha * np.exp(Z) - alpha)
+
 
     def set_keep_probs(self, keep_probs):
         """
