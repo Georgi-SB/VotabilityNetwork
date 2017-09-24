@@ -61,7 +61,7 @@ class NNetwork(object):
         self.l2_reg         = use_l2_regularization
         self.lambd          = 10.0
 
-    def fit_model(self, X, Y, mini_batch_size = 128, optimization_mode = "adam", learning_rate = 0.0075, num_epochs = 3000, print_cost=True, seed = 100):
+    def fit_model(self, X, Y, mini_batch_size = 128, optimization_mode = "adam", learning_rate = 0.0075, num_epochs = 3000, print_cost=True, seed = 1):
         """Implements the L-layer neural network training
             Arguments:
             X, Y - training dataset
@@ -150,7 +150,7 @@ class NNetwork(object):
         variance = {}
 
         for l in range(1, self.num_layers):
-            parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) * np.sqrt(2.0/self.layer_dims[l-1]) #*0.01   *np.sqrt(1.0/self.layer_dims[l-1])
+            parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) * np.sqrt(2.0/self.layer_dims[l-1]) #*0.01    !!! use this for benchmark!!! *np.sqrt(1.0/self.layer_dims[l-1])
             #He initialization
             # parameters['W' + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) np.sqrt(2)/ np.sqrt((self.layer_dims[l-1] + self.layer_dims[l]) #*0.01
             parameters['b' + str(l)] = np.zeros((self.layer_dims[l], 1))
@@ -220,12 +220,13 @@ class NNetwork(object):
         # assert ('A'+str(L) in self.caches), "Cost is not defined as model ouput has not been calculated!" 
         # Compute loss from AL and Y.
         #cost = (1./m) * (-np.dot(y, np.log(model_output.T)) - np.dot(1-y, np.log(1-model_output.T)))
+        if self.layer_types[self.num_layers-1] != "softmax":
+            logprobs = np.multiply(-np.log(model_output), y) + np.multiply(-np.log(1 - model_output), 1 - y)
+            cost = 1. / m * np.sum(logprobs)
+        else:
+            logprobs = np.sum( np.multiply(-np.log(model_output), y), axis=0, keepdims=True)
+            cost = np.sum(logprobs, axis=1)/m
 
-        logprobs = np.multiply(-np.log(model_output), y) + np.multiply(-np.log(1 - model_output), 1 - y)
-        cost = 1. / m * np.sum(logprobs)
-
-
-    
         cost = np.squeeze(cost)      # To make sure your cost's shape is what we expect (e.g. this turns [[17]] into 17).
         assert(cost.shape == ())
     
@@ -271,18 +272,36 @@ class NNetwork(object):
         AL = self.caches['A'+str(L)]
         Y = Y.reshape(AL.shape) # after this line, Y is the same shape as AL
     
-        # Initializing the backpropagation
-        grads["dA" + str(L)] = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
-        # self.grads["dA" + str(L-1)], grads["dW" + str(L)], grads["db" + str(L)] = linear_activation_backward(dAL, L, activation = layer_types[L-1])
+        if (self.layer_types[L] != "softmax"): # if last layer is not softmax
+            # Initializing the backpropagation
+            grads["dA" + str(L)] = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
+            # self.grads["dA" + str(L-1)], grads["dW" + str(L)], grads["db" + str(L)] = linear_activation_backward(dAL, L, activation = layer_types[L-1])
     
-        for l in reversed(range(L)):
-            # lth layer:  gradients.
-            dA_prev_temp, dW_temp, db_temp = self.linear_activation_backward(grads["dA" + str(l + 1)], l+1, activation = self.layer_types[l+1])
-            if self.use_dropout and l>0:
-                dA_prev_temp = np.multiply(dA_prev_temp, self.caches["D"+str(l)])/self.keep_probs[l]
-            grads["dA" + str(l)] = dA_prev_temp
-            grads["dW" + str(l + 1)] = dW_temp
-            grads["db" + str(l + 1)] = db_temp
+            for l in reversed(range(L)):
+                # lth layer:  gradients.
+                dA_prev_temp, dW_temp, db_temp = self.linear_activation_backward(grads["dA" + str(l + 1)], l+1, activation = self.layer_types[l+1])
+                if self.use_dropout and l>0:
+                    dA_prev_temp = np.multiply(dA_prev_temp, self.caches["D"+str(l)])/self.keep_probs[l]
+                grads["dA" + str(l)] = dA_prev_temp
+                grads["dW" + str(l + 1)] = dW_temp
+                grads["db" + str(l + 1)] = db_temp
+        else: # last layer is softmax
+            # Initializing the backpropagation
+            grads["dA" + str(L)] = -np.sum(np.divide(Y, AL), axis=0, keepdims=True)
+            grads["dZ" + str(L)] = self.caches["A"+ str(L)] - Y  # gradient of softmax wrt last input activation ZL
+            grads["dA" + str(L - 1)] , grads["dW" + str(L)], grads["db" + str(L)] = self.linear_backward(grads["dZ" + str(L)], L)
+
+            if self.use_dropout and L > 1:
+                grads["dA" + str(L - 1)] = np.multiply(grads["dA" + str(L - 1)], self.caches["D" + str(L-1)]) / self.keep_probs[L-1]
+
+            for l in reversed(range(L-1)):
+                # lth layer:  gradients.
+                dA_prev_temp, dW_temp, db_temp = self.linear_activation_backward(grads["dA" + str(l + 1)], l+1, activation = self.layer_types[l+1])
+                if self.use_dropout and l>0:
+                    dA_prev_temp = np.multiply(dA_prev_temp, self.caches["D"+str(l)])/self.keep_probs[l]
+                grads["dA" + str(l)] = dA_prev_temp
+                grads["dW" + str(l + 1)] = dW_temp
+                grads["db" + str(l + 1)] = db_temp
 
         return grads
 
@@ -522,17 +541,22 @@ class NNetwork(object):
         assert Xn.shape[1] == Yn.shape[1], "nb x-examples  does not match nb y examples"
         m = Xn.shape[1] # nb of examples
         # assert Xn.shape[0]==self.X.shape[0], "data shape does not match input layer"
-        predict = np.zeros((1,m))
+        predict = np.zeros(Yn.shape)
     
         # Forward propagation
         original_caches_mode = self.writeCaches
         self.writeCaches = False
         probs = self.forward_pass(Xn)
         self.writeCaches = original_caches_mode
-    
-        # convert probabilities to 0/1 predictions
-        predict[probs <= 0.5] = 0.0
-        predict[probs > 0.5] = 1.0
+        if probs.shape[0]>1: #softmax last layer
+            probs = probs-np.max(probs, axis=0, keepdims=True)
+            predict[probs>=0.0] = 1.0
+            accuracy = 1.0 - np.sum((predict != Yn))/(2*m)
+        else:
+            # convert probabilities to 0/1 predictions
+            predict[probs <= 0.5] = 0.0
+            predict[probs > 0.5] = 1.0
+            accuracy = np.sum((predict == Yn))/m
     
         #for i in range(0, probs.shape[1]):
         #    if probas[0,i] > 0.5:
@@ -542,7 +566,7 @@ class NNetwork(object):
     
         #print results
         print ("predictions/true labels: " + str(predict)+" "+str(Yn))
-        print("Accuracy: " + str(np.sum((predict == Yn)/m)))
+        print("Accuracy: " + str(accuracy))
         
         return predict
 
@@ -560,8 +584,8 @@ class NNetwork(object):
             A -- the output of the activation function, also called the post-activation value 
             Z -- the activation/layer input stored for computing the backward pass efficiently
              """
-        assert (activation == "sigmoid" or activation=="relu" or activation=="selu"or activation=="tanh" or activation=="l_relu") , "Invalid activation string"
-        
+        assert (activation == "softmax" or activation == "sigmoid" or activation=="relu" or activation=="selu"or activation=="tanh" or activation=="l_relu"or activation=="l_relu") , "Invalid activation string"
+
         Z = W.dot(A_prev) + b # np.dot(W,A)+b
         if activation == "sigmoid":
             A = self.sigmoid(Z)
@@ -573,6 +597,8 @@ class NNetwork(object):
             A = self.tanh_np(Z=Z)
         elif activation == "selu":
             A = self.selu(Z=Z)
+        elif activation == "softmax":
+            A = self.softmax(Z=Z)
     
         assert (A.shape == (W.shape[0], A_prev.shape[1]))
         assert (Z.shape == A.shape)
@@ -653,6 +679,21 @@ class NNetwork(object):
         alpha = 1.6732632423543772848170429916717
         scale = 1.0507009873554804934193349852946
         return scale * np.where(Z >= 0.0, Z, alpha * np.exp(Z) - alpha)
+
+
+    def softmax(self, Z):
+        """
+            Implement the softmax final layer   .
+
+            Arguments:
+            Z -- Output of the linear layer, of any shape
+
+            Returns:
+            A -- Post-activation parameter, of the same shape as Z
+            """
+        max_element = np.max(Z,axis=0, keepdims=True)
+        e_Z = np.exp(Z - max_element)
+        return e_Z / np.sum(e_Z, axis=0, keepdims=True)
 
 
     def set_keep_probs(self, keep_probs):

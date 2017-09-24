@@ -78,13 +78,32 @@ class TestNNetwork(object):
       #                          num_epochs=self.num_epochs,
       #                          print_cost=self.print_cost)
 
+      #test softmax
+      if (self.layer_types[-1] == "softmax"):
+          train_y_sm = np.zeros((2, self.train_y.shape[1]))
+          for i in range(self.train_y.shape[1]):
+              if self.train_y[0][i]==0:
+                  train_y_sm[0][i]=1
+              else:
+                  train_y_sm[1][i]=1
+          self.train_y = train_y_sm
+          test_y_sm = np.zeros((2, self.test_y.shape[1]))
+          for i in range(self.test_y.shape[1]):
+              if self.test_y[0][i] == 0:
+                  test_y_sm[0][i] = 1
+              else:
+                  test_y_sm[1][i] = 1
+          self.test_y = test_y_sm
+
+
       network_object.fit_model(X=self.train_x,
-                               Y=self.train_y,
-                               mini_batch_size= self.train_x.shape[1],
+                               Y= train_y_sm, #   self.train_y,
+                               mini_batch_size=self.train_x.shape[1],
                                optimization_mode="gradient_descend",  # "gradient_descend","momentum", "adam"
                                learning_rate=0.0075,  # self.learning_rate,0.0075
                                num_epochs=self.num_epochs,
                                print_cost=self.print_cost)
+
 
       print("results on train:")
       network_object.predict(self.train_x, self.train_y)
@@ -219,10 +238,10 @@ class TestNNetwork(object):
 
 # For benchmarking the core network run this:
 ################################################
-#test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075, num_epochs = 3000, print_cost=True, dataset="cats")
+test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075, num_epochs = 3000, print_cost=True, dataset="cats")
 
 
-#test_object.benchmark_model()
+test_object.benchmark_model()
 ################################################
 
 
@@ -237,8 +256,12 @@ class TestNNetwork(object):
 #test_object.run_gradient_check()
 ################################################
 
+#test_object = TestNNetwork([20, 7, 5, 2], ["relu","relu","relu","softmax"], learning_rate = 0.0075,   num_epochs = 3000, print_cost=True, dataset="cats")
 
-test_object = TestNNetwork([20, 7, 5, 1], ["selu","selu","selu","sigmoid"], learning_rate = 0.0075,   num_epochs = 3000, print_cost=True, dataset="cats")
+#test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075,   num_epochs = 3000, print_cost=True, dataset="cats")
+
+
+# test_object = TestNNetwork([20, 7, 5, 1], ["selu","selu","selu","sigmoid"], learning_rate = 0.0075,   num_epochs = 3000, print_cost=True, dataset="cats")
 
 #test_object = TestNNetwork([5, 2, 1], ["relu","relu","sigmoid"], learning_rate = 0.0007,   num_epochs = 10000, print_cost=True)
 
@@ -246,4 +269,4 @@ test_object = TestNNetwork([20, 7, 5, 1], ["selu","selu","selu","sigmoid"], lear
 #test_object = TestNNetwork([20, 7, 5, 1], ["tanh","tanh","tanh","sigmoid"], learning_rate = 0.0075, num_epochs = 3000, print_cost=True)
 
 
-test_object.run_test()
+#test_object.run_test()
