@@ -30,17 +30,29 @@ class TestNNetwork(object):
             Returns:
             parameters -- parameters learnt by the model. They can then be used to predict.
             """
+        self.layer_types = ["sigmoid"] + hidden_layer_types
         if dataset == "cats":
             self.train_x, self.train_y, self.test_x, self.test_y, self.classes = self.load_cat_pics_data()
         elif dataset == "2D":
            self.train_x, self.train_y, self.test_x, self.test_y = self.load_2D_dataset()
-        else:
+           self.classes = [0,1]
+        elif dataset == "random2D":
            self.train_x, self.train_y, self.test_x, self.test_y = self.load_random_2D_dataset()
+           self.classes = [0, 1]
+        else:
+            self.train_x, self.train_y, self.test_x, self.test_y, self.classes = self.load_signs_dataset()
 
         self.train_x, self.test_x = NNetwork.NNetwork.normalize_input_data(self.train_x, self.test_x )
 
         self.layer_dims = [self.train_x.shape[0]] + hidden_layer_sizes
-        self.layer_types = ["sigmoid"]+hidden_layer_types
+        if (self.layer_types[-1]=="softmax"):
+            self.layer_dims[-1] = len(self.classes)
+            self.train_y=self.one_hot_encode(self.train_y,len(self.classes))
+            self.test_y = self.one_hot_encode(self.test_y, len(self.classes))
+        else:
+            self.layer_dims[-1] = 1
+
+
         self.learning_rate = learning_rate
         self.num_epochs = num_epochs
         self.print_cost = print_cost
@@ -78,26 +90,9 @@ class TestNNetwork(object):
       #                          num_epochs=self.num_epochs,
       #                          print_cost=self.print_cost)
 
-      #test softmax
-      if (self.layer_types[-1] == "softmax"):
-          train_y_sm = np.zeros((2, self.train_y.shape[1]))
-          for i in range(self.train_y.shape[1]):
-              if self.train_y[0][i]==0:
-                  train_y_sm[0][i]=1
-              else:
-                  train_y_sm[1][i]=1
-          self.train_y = train_y_sm
-          test_y_sm = np.zeros((2, self.test_y.shape[1]))
-          for i in range(self.test_y.shape[1]):
-              if self.test_y[0][i] == 0:
-                  test_y_sm[0][i] = 1
-              else:
-                  test_y_sm[1][i] = 1
-          self.test_y = test_y_sm
-
 
       network_object.fit_model(X=self.train_x,
-                               Y= train_y_sm, #   self.train_y,
+                               Y= self.train_y,
                                mini_batch_size=self.train_x.shape[1],
                                optimization_mode="gradient_descend",  # "gradient_descend","momentum", "adam"
                                learning_rate=0.0075,  # self.learning_rate,0.0075
@@ -234,14 +229,37 @@ class TestNNetwork(object):
     
       return train_x, train_y, test_x, test_y, classes
 
+   def load_signs_dataset(self):
+       train_dataset = h5py.File('datasets/train_signs.h5', "r")
+       train_set_x_orig = np.array(train_dataset["train_set_x"][:])  # your train set features
+       train_set_y_orig = np.array(train_dataset["train_set_y"][:])  # your train set labels
+
+       test_dataset = h5py.File('datasets/test_signs.h5', "r")
+       test_set_x_orig = np.array(test_dataset["test_set_x"][:])  # your test set features
+       test_set_y_orig = np.array(test_dataset["test_set_y"][:])  # your test set labels
+
+       classes = np.array(test_dataset["list_classes"][:])  # the list of classes
+
+       train_set_y_orig = train_set_y_orig.reshape((1, train_set_y_orig.shape[0]))
+       test_set_y_orig = test_set_y_orig.reshape((1, test_set_y_orig.shape[0]))
+
+       train_x_flatten = train_set_x_orig.reshape(train_set_x_orig.shape[0],-1).T  # The "-1" makes reshape flatten the remaining dimensions
+       test_x_flatten = test_set_x_orig.reshape(test_set_x_orig.shape[0], -1).T
+
+       return train_x_flatten, train_set_y_orig, test_x_flatten, test_set_y_orig, classes
+
+   def one_hot_encode(self, data, nb_classes):
+       """Convert an iterable of indices to one-hot encoded labels."""
+       targets = np.array(data).reshape(-1)
+       return np.transpose(np.eye(nb_classes)[targets])
 
 
 # For benchmarking the core network run this:
 ################################################
-test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075, num_epochs = 3000, print_cost=True, dataset="cats")
+#test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075, num_epochs = 3000, print_cost=True, dataset="cats")
 
 
-test_object.benchmark_model()
+#test_object.benchmark_model()
 ################################################
 
 
@@ -256,7 +274,7 @@ test_object.benchmark_model()
 #test_object.run_gradient_check()
 ################################################
 
-#test_object = TestNNetwork([20, 7, 5, 2], ["relu","relu","relu","softmax"], learning_rate = 0.0075,   num_epochs = 3000, print_cost=True, dataset="cats")
+test_object = TestNNetwork([20, 7, 5, 2], ["relu","relu","relu","softmax"], learning_rate = 0.0075,   num_epochs = 3000, print_cost=True, dataset="signs")
 
 #test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075,   num_epochs = 3000, print_cost=True, dataset="cats")
 
@@ -269,4 +287,4 @@ test_object.benchmark_model()
 #test_object = TestNNetwork([20, 7, 5, 1], ["tanh","tanh","tanh","sigmoid"], learning_rate = 0.0075, num_epochs = 3000, print_cost=True)
 
 
-#test_object.run_test()
+test_object.run_test()
