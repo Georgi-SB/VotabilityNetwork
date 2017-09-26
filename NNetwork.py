@@ -15,7 +15,7 @@ import math
 
 class NNetwork(object):
 
-    def __init__(self, layer_dims, layer_types,   use_dropout = False, use_l2_regularization = False):
+    def __init__(self, layer_dims, layer_types,   use_dropout = False, use_l2_regularization = False, lambd = 0.01):
         """Arguments: 
             layer_dims: a list of input layer and hidden layer sizes 
             layer_types: a list of strings - the first element is the input and the 
@@ -59,7 +59,7 @@ class NNetwork(object):
 
         # L2 regularization
         self.l2_reg         = use_l2_regularization
-        self.lambd          = 10.0
+        self.lambd          = lambd
 
     def fit_model(self, X, Y, mini_batch_size = 128, optimization_mode = "adam", learning_rate = 0.0075, num_epochs = 3000, print_cost=True, seed = 1):
         """Implements the L-layer neural network training
@@ -75,6 +75,12 @@ class NNetwork(object):
             """
 
         tic = time.process_time()
+        #adjust last hidden layer according to type of y if needed
+        if self.layer_types[-1]=="softmax" and Y.shape[0]==1:
+            Y = self.one_hot_encode(Y, self.layer_dims[-1])
+        if Y.shape[0]>1:
+            self.layer_types[-1] = "softmax"
+
         # Parameters initialization.
         self.parameters, self.momentum, self.variance = self.initialize_parameters()
         # keep track of cost
@@ -133,6 +139,12 @@ class NNetwork(object):
         toc = time.process_time()
         print("Network trained in " + str(1000 * (toc - tic)) + "ms")
         return self.parameters, costs
+
+    def one_hot_encode(self, data, nb_classes):
+        """Convert an iterable of indices to one-hot encoded labels."""
+        targets = np.array(data).reshape(-1)
+        return np.transpose(np.eye(nb_classes)[targets])
+
 
     def initialize_parameters(self):
         """
@@ -739,7 +751,7 @@ class NNetwork(object):
             #  Shuffle (X, Y)
             permutation = list(np.random.permutation(m))
             shuffled_X = X[:, permutation]
-            shuffled_Y = Y[:, permutation].reshape((1, m))
+            shuffled_Y = Y[:, permutation].reshape((Y.shape[0], m))
 
             #  Partition (shuffled_X, shuffled_Y). Minus the end case.
 

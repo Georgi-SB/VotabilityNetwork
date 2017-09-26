@@ -65,13 +65,9 @@ class TestNNetwork(object):
       network_object = NNetwork.NNetwork(self.layer_dims,
                                          self.layer_types,
                                          use_dropout=False,
-                                         use_l2_regularization = False)
-         
-      # network_object.fit_model(batchX = self.train_x[:, 0:100],
-      #                         batchY = self.train_y[:, 0:100],
-      #                         learning_rate = self.learning_rate,
-      #                         num_iterations = self.num_iterations,
-      #                         print_cost=self.print_cost)
+                                         use_l2_regularization = True,
+                                         lambd = 15)
+
 
       #network_object.fit_model(X=self.train_x,
       #                         Y=self.train_y,
@@ -93,9 +89,9 @@ class TestNNetwork(object):
 
       network_object.fit_model(X=self.train_x,
                                Y= self.train_y,
-                               mini_batch_size=self.train_x.shape[1],
-                               optimization_mode="gradient_descend",  # "gradient_descend","momentum", "adam"
-                               learning_rate=0.0075,  # self.learning_rate,0.0075
+                               mini_batch_size= 128, #self.train_x.shape[1],
+                               optimization_mode="adam",  # "gradient_descend","momentum", "adam"
+                               learning_rate=0.0001,  # self.learning_rate,0.0075
                                num_epochs=self.num_epochs,
                                print_cost=self.print_cost)
 
@@ -274,7 +270,7 @@ class TestNNetwork(object):
 #test_object.run_gradient_check()
 ################################################
 
-test_object = TestNNetwork([20, 7, 5, 2], ["relu","relu","relu","softmax"], learning_rate = 0.0075,   num_epochs = 3000, print_cost=True, dataset="signs")
+test_object = TestNNetwork([20, 7, 5, 2], ["relu","relu","relu","softmax"], learning_rate = 0.0075,   num_epochs = 1000, print_cost=True, dataset="signs")
 
 #test_object = TestNNetwork([20, 7, 5, 1], ["relu","relu","relu","sigmoid"], learning_rate = 0.0075,   num_epochs = 3000, print_cost=True, dataset="cats")
 
