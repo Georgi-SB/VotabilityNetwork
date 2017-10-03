@@ -82,7 +82,18 @@ class NeuralNetworkTf(object):
         cost = self.compute_softmax_cross_entropy_cost(Z_final, Y)
 
         # Backpropagation: Define the tensorflow optimizer. Use an AdamOptimizer
-        optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+        if optimizer == "adam":
+            optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+        elif optimizer == "gradient_descent":
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
+        elif optimizer == "momentum":
+            optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate,momentum=0.9, use_nesterov=True)
+        elif optimizer == "adagrad":
+            optimizer = tf.train.AdagradOptimizer(learning_rate=learning_rate)
+        else:
+            optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+
+
 
         # Initialize all the variables
         init = tf.global_variables_initializer()
