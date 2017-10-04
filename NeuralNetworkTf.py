@@ -407,7 +407,7 @@ print ("Y_test shape: " + str(Y_test.shape))
 
 
 
-tf_nn = NeuralNetworkTf([12288,25,12,6], ["sigmoid","relu","relu","softmax"], use_dropout=False, use_l2_regularization=False, lambd=0.01)
+tf_nn = NeuralNetworkTf([12288,25,12,6], ["sigmoid","selu","selu","softmax"], use_dropout=False, use_l2_regularization=False, lambd=0.01)
 
 tf_nn.fit_model(X_train=X_train,Y_train=Y_train, X_test = X_test, Y_test = Y_test, learning_rate=0.0001,
                   num_epochs=1500, minibatch_size=32, print_cost=True, optimizer = "adam")
@@ -415,7 +415,7 @@ tf_nn.fit_model(X_train=X_train,Y_train=Y_train, X_test = X_test, Y_test = Y_tes
 
 
 ## START CODE HERE ## (PUT YOUR IMAGE NAME)
-my_image = "thumbs_up.jpg"
+my_image = "duos.jpg"
 ## END CODE HERE ##
 
 # We preprocess your image to fit your algorithm.
@@ -426,31 +426,3 @@ my_image_prediction = tf_nn.predict_index(my_image)
 
 plt.imshow(image)
 print("Your algorithm predicts: y = " + str(np.squeeze(my_image_prediction)))
-
-
-def predict(X, parameters):
-    
-    W1 = tf.convert_to_tensor(parameters["W1"])
-    b1 = tf.convert_to_tensor(parameters["b1"])
-    W2 = tf.convert_to_tensor(parameters["W2"])
-    b2 = tf.convert_to_tensor(parameters["b2"])
-    W3 = tf.convert_to_tensor(parameters["W3"])
-    b3 = tf.convert_to_tensor(parameters["b3"])
-    
-    params = {"W1": W1,
-              "b1": b1,
-              "W2": W2,
-              "b2": b2,
-              "W3": W3,
-              "b3": b3}
-    
-    x = tf.placeholder("float", [12288, 1])
-    
-    z3 = forward_propagation_for_predict(x, params)
-    p = tf.argmax(z3)
-    
-    sess = tf.Session()
-    prediction = sess.run(p, feed_dict = {x: X})
-        
-    return prediction
-
