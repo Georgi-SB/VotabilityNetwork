@@ -15,7 +15,7 @@ from tensorflow.python.framework import ops
 
 
 class NeuralNetworkTf(object):
-    def __init__(self, layer_dims, layer_types, use_dropout=False, use_l2_regularization=False, lambd=0.01):
+    def __init__(self, layer_dims, layer_types, use_dropout=False, l2_regularization=False, l2_lambda=0.01):
         """Arguments:
             layer_dims: a list of input layer and hidden layer sizes
             layer_types: a list of strings - the first element is the input and the
@@ -40,6 +40,9 @@ class NeuralNetworkTf(object):
         self.grads = {}  # keeps the calculated gradients of the cost wrt weights. keys "dWl", "dbl"
         self.writeCaches = True
         self.are_params_initialized = False
+        # regularization
+        self.l2_regularization = l2_regularization
+        self.l2_lambda = l2_lambda
 
     def fit_model(self, X_train, Y_train, X_test, Y_test, learning_rate=0.0001,
                   num_epochs=1500, minibatch_size=32, print_cost=True, optimizer = "adam"):
@@ -77,8 +80,10 @@ class NeuralNetworkTf(object):
         parameters = self.initialize_tf_trainable_parameters()
 
 
+
         # Forward propagation: the forward propagation in the tensorflow graph
         Z_final, A_final = self.forward_propagation(X, parameters)
+
 
         # Cost function:  add cost function to tensorflow graph
         cost = self.compute_softmax_cross_entropy_cost(Z_final, Y)
@@ -184,10 +189,20 @@ class NeuralNetworkTf(object):
         self.parameters = {}
 
         for l in range(1, self.num_layers):
-            self.parameters['W' + str(l)] = tf.get_variable('W' + str(l), [self.layer_dims[l], self.layer_dims[l - 1]]
-                                                       , initializer=tf.contrib.layers.xavier_initializer(seed=1))
-            self.parameters['b' + str(l)] = tf.get_variable('b' + str(l), [self.layer_dims[l],1]
-                                                       , initializer=tf.zeros_initializer())
+            if self.l2_regularization:
+                self.parameters['W' + str(l)] = tf.get_variable('W' + str(l), [self.layer_dims[l], self.layer_dims[l - 1]]
+                                                       , initializer=tf.contrib.layers.xavier_initializer(seed=1)
+                                                       , regularizer = tf.contrib.layers.l2_regularizer(self.l2_lambda))
+            else:
+                self.parameters['W' + str(l)] = tf.get_variable('W' + str(l),
+                                                                [self.layer_dims[l], self.layer_dims[l - 1]],
+                                                                initializer=tf.contrib.layers.xavier_initializer(seed=1))
+
+            self.parameters['b' + str(l)] = tf.get_variable('b' + str(l), [self.layer_dims[l], 1]
+                                                                , initializer=tf.zeros_initializer())
+
+
+
         self.are_params_initialized = True
 
         return self.parameters
@@ -255,6 +270,13 @@ class NeuralNetworkTf(object):
         Returns:
         cost - Tensor of the cost function
         """
+        # l2 regularization
+        l2_regularizer = tf.nn.l2_loss(self.parameters["W1"])
+        if self.l2_regularization:
+            for l in range(2, self.num_layers):
+                l2_regularizer += tf.nn.l2_loss(self.parameters["W" + str(l)])
+
+
 
         # to fit the tensorflow requirement for tf.nn.softmax_cross_entropy_with_logits(...,...)
         # we work with dimensions: (size of the layer , size of the mini-batch) while tf is (size of the mini-batch , size of the layer)
@@ -262,7 +284,8 @@ class NeuralNetworkTf(object):
         logits = tf.transpose(Z)
         labels = tf.transpose(Y)
 
-        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels))
+        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels) +
+                              0.5*self.l2_lambda*l2_regularizer)
 
         return cost
 
@@ -407,7 +430,8 @@ print ("Y_test shape: " + str(Y_test.shape))
 
 
 
-tf_nn = NeuralNetworkTf([12288,25,12,6], ["sigmoid","selu","selu","softmax"], use_dropout=False, use_l2_regularization=False, lambd=0.01)
+tf_nn = NeuralNetworkTf([12288,25,12,6], ["sigmoid","selu","selu","softmax"], use_dropout=False,
+                        l2_regularization=True, l2_lambda=0.01)
 
 tf_nn.fit_model(X_train=X_train,Y_train=Y_train, X_test = X_test, Y_test = Y_test, learning_rate=0.0001,
                   num_epochs=1500, minibatch_size=32, print_cost=True, optimizer = "adam")
