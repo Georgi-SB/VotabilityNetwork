@@ -1,8 +1,7 @@
-
 # coding: utf-8
 
 # # Neural Network with TensorFlow
-# 
+#
 
 import math
 import numpy as np
@@ -45,7 +44,7 @@ class NeuralNetworkTf(object):
         self.l2_lambda = l2_lambda
 
     def fit_model(self, X_train, Y_train, X_test, Y_test, learning_rate=0.0001,
-                  num_epochs=1500, minibatch_size=32, print_cost=True, optimizer = "adam"):
+                  num_epochs=1500, minibatch_size=32, print_cost=True, optimizer="adam"):
         """
         Implements the calibration of the   tensorflow neural network model defined in the object/class
 
@@ -71,7 +70,7 @@ class NeuralNetworkTf(object):
         n_y = Y_train.shape[0]  # n_y : output size
         assert n_x == self.layer_dims[0], "inconsistent input layer dimension and training set! "
         assert n_y == self.layer_dims[-1], "inconsistent output layer dimension and training set! "
-        costs = []  #  keep track of the cost
+        costs = []  # keep track of the cost
 
         # Create tensorflow Placeholders of shape (n_x, n_y)
         X, Y = self.create_placeholders(n_x, n_y)
@@ -79,11 +78,8 @@ class NeuralNetworkTf(object):
         # Initialize parameters
         parameters = self.initialize_tf_trainable_parameters()
 
-
-
         # Forward propagation: the forward propagation in the tensorflow graph
         Z_final, A_final = self.forward_propagation(X, parameters)
-
 
         # Cost function:  add cost function to tensorflow graph
         cost = self.compute_softmax_cross_entropy_cost(Z_final, Y)
@@ -94,13 +90,11 @@ class NeuralNetworkTf(object):
         elif optimizer == "gradient_descent":
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
         elif optimizer == "momentum":
-            optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate,momentum=0.9, use_nesterov=True)
+            optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9, use_nesterov=True)
         elif optimizer == "adagrad":
             optimizer = tf.train.AdagradOptimizer(learning_rate=learning_rate)
         else:
             optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
-
-
 
         # Initialize all the variables
         init = tf.global_variables_initializer()
@@ -190,24 +184,26 @@ class NeuralNetworkTf(object):
 
         for l in range(1, self.num_layers):
             if self.l2_regularization:
-                self.parameters['W' + str(l)] = tf.get_variable('W' + str(l), [self.layer_dims[l], self.layer_dims[l - 1]]
-                                                       , initializer=tf.contrib.layers.xavier_initializer(seed=1)
-                                                       , regularizer = tf.contrib.layers.l2_regularizer(self.l2_lambda))
+                self.parameters['W' + str(l)] = tf.get_variable('W' + str(l),
+                                                                [self.layer_dims[l], self.layer_dims[l - 1]]
+                                                                ,
+                                                                initializer=tf.contrib.layers.xavier_initializer(seed=1)
+                                                                , regularizer=tf.contrib.layers.l2_regularizer(
+                        self.l2_lambda))
             else:
                 self.parameters['W' + str(l)] = tf.get_variable('W' + str(l),
                                                                 [self.layer_dims[l], self.layer_dims[l - 1]],
-                                                                initializer=tf.contrib.layers.xavier_initializer(seed=1))
+                                                                initializer=tf.contrib.layers.xavier_initializer(
+                                                                    seed=1))
 
             self.parameters['b' + str(l)] = tf.get_variable('b' + str(l), [self.layer_dims[l], 1]
-                                                                , initializer=tf.zeros_initializer())
-
-
+                                                            , initializer=tf.zeros_initializer())
 
         self.are_params_initialized = True
 
         return self.parameters
 
-    def forward_propagation(self, X, write_caches = True):
+    def forward_propagation(self, X, write_caches=True):
         """
         Implements the forward propagation for the model:
 
@@ -233,16 +229,17 @@ class NeuralNetworkTf(object):
             elif self.layer_types[l] == "tanh":
                 A = tf.nn.tanh(Z)
             elif self.layer_types[l] == "softmax":
-                A = tf.transpose(tf.nn.softmax(logits =  tf.transpose(Z)))
+                A = tf.transpose(tf.nn.softmax(logits=tf.transpose(Z)))
             elif self.layer_types[l] == "selu":
-                selu_alpha = tf.constant(1.6732632423543772848170429916717, name = "selu_alpha")
-                selu_scale = tf.constant(1.0507009873554804934193349852946, name = "selu_scale")
-                A = tf.multiply( selu_scale, tf.where(Z >= 0.0, Z, tf.add( tf.multiply(selu_alpha,tf.exp(Z)),tf.multiply(-1.0, selu_alpha))))
+                selu_alpha = tf.constant(1.6732632423543772848170429916717, name="selu_alpha")
+                selu_scale = tf.constant(1.0507009873554804934193349852946, name="selu_scale")
+                A = tf.multiply(selu_scale, tf.where(Z >= 0.0, Z, tf.add(tf.multiply(selu_alpha, tf.exp(Z)),
+                                                                         tf.multiply(-1.0, selu_alpha))))
             else:
                 print("Unknown activation function! Using selu")
             # write input activation Z and output activation A of layer l into the cache
             if write_caches:
-                self.caches["Z"+str(l)] = Z
+                self.caches["Z" + str(l)] = Z
                 self.caches["A" + str(l)] = A
 
         return Z, A
@@ -276,8 +273,6 @@ class NeuralNetworkTf(object):
             for l in range(2, self.num_layers):
                 l2_regularizer += tf.nn.l2_loss(self.parameters["W" + str(l)])
 
-
-
         # to fit the tensorflow requirement for tf.nn.softmax_cross_entropy_with_logits(...,...)
         # we work with dimensions: (size of the layer , size of the mini-batch) while tf is (size of the mini-batch , size of the layer)
         # see https://www.tensorflow.org/api_docs/python/tf/nn/softmax_cross_entropy_with_logits
@@ -285,7 +280,7 @@ class NeuralNetworkTf(object):
         labels = tf.transpose(Y)
 
         cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels) +
-                              0.5*self.l2_lambda*l2_regularizer)
+                              0.5 * self.l2_lambda * l2_regularizer)
 
         return cost
 
@@ -331,47 +326,39 @@ class NeuralNetworkTf(object):
         return mini_batches
 
 
-
-
 def linear_function():
     """
-    Implements a linear function: 
+    Implements a linear function:
             Initializes W to be a random tensor of shape (4,3)
             Initializes X to be a random tensor of shape (3,1)
             Initializes b to be a random tensor of shape (4,1)
-    Returns: 
-    result -- runs the session for Y = WX + b 
+    Returns:
+    result -- runs the session for Y = WX + b
     """
-    
+
     np.random.seed(1)
-    
+
     ### START CODE HERE ### (4 lines of code)
-    X = tf.constant(np.random.randn(3,1), name = "X")
-    W = tf.constant(np.random.randn(4,3), name = "W")
-    b = tf.constant(np.random.randn(4,1), name = "b")
+    X = tf.constant(np.random.randn(3, 1), name="X")
+    W = tf.constant(np.random.randn(4, 3), name="W")
+    b = tf.constant(np.random.randn(4, 1), name="b")
     # Y = tf.Variable(tf.add(tf.matmul(W,X),b), name='Y')
-    Y = tf.add(tf.matmul(W,X),b, name='Y')
-    # init = tf.global_variables_initializer() 
-    ### END CODE HERE ### 
-    
+    Y = tf.add(tf.matmul(W, X), b, name='Y')
+    # init = tf.global_variables_initializer()
+    ### END CODE HERE ###
+
     # Create the session using tf.Session() and run it with sess.run(...) on the variable you want to calculate
-    
+
     ### START CODE HERE ###
     sess = tf.Session()
     # sess.run(init)
     result = sess.run(Y)
-    ### END CODE HERE ### 
-    
-    # close the session 
+    ### END CODE HERE ###
+
+    # close the session
     sess.close()
 
     return result
-
-
-
-
-
-
 
 
 def load_dataset():
@@ -393,7 +380,6 @@ def load_dataset():
 
 X_train_orig, Y_train_orig, X_test_orig, Y_test_orig, classes = load_dataset()
 
-
 # Change the index below and run the cell to visualize some examples in the dataset.
 
 # Example of a picture
@@ -409,8 +395,10 @@ index = 12
 X_train_flatten = X_train_orig.reshape(X_train_orig.shape[0], -1).T
 X_test_flatten = X_test_orig.reshape(X_test_orig.shape[0], -1).T
 # Normalize image vectors
-X_train = X_train_flatten/255.
-X_test = X_test_flatten/255.
+X_train = X_train_flatten / 255.
+X_test = X_test_flatten / 255.
+
+
 # Convert training and test labels to one hot matrices
 
 
@@ -418,34 +406,31 @@ def convert_to_one_hot(Y, C):
     Y = np.eye(C)[Y.reshape(-1)].T
     return Y
 
+
 Y_train = convert_to_one_hot(Y_train_orig, 6)
 Y_test = convert_to_one_hot(Y_test_orig, 6)
 
-print ("number of training examples = " + str(X_train.shape[1]))
-print ("number of test examples = " + str(X_test.shape[1]))
-print ("X_train shape: " + str(X_train.shape))
-print ("Y_train shape: " + str(Y_train.shape))
-print ("X_test shape: " + str(X_test.shape))
-print ("Y_test shape: " + str(Y_test.shape))
+print("number of training examples = " + str(X_train.shape[1]))
+print("number of test examples = " + str(X_test.shape[1]))
+print("X_train shape: " + str(X_train.shape))
+print("Y_train shape: " + str(Y_train.shape))
+print("X_test shape: " + str(X_test.shape))
+print("Y_test shape: " + str(Y_test.shape))
 
-
-
-tf_nn = NeuralNetworkTf([12288,25,12,6], ["sigmoid","selu","selu","softmax"], use_dropout=False,
+tf_nn = NeuralNetworkTf([12288, 25, 12, 6], ["sigmoid", "selu", "selu", "softmax"], use_dropout=False,
                         l2_regularization=True, l2_lambda=0.07)
 
-tf_nn.fit_model(X_train=X_train,Y_train=Y_train, X_test = X_test, Y_test = Y_test, learning_rate=0.0001,
-                  num_epochs=1500, minibatch_size=32, print_cost=True, optimizer = "adam")
+tf_nn.fit_model(X_train=X_train, Y_train=Y_train, X_test=X_test, Y_test=Y_test, learning_rate=0.0001,
+                num_epochs=1500, minibatch_size=32, print_cost=True, optimizer="adam")
 
-
-
-# (PUT YOUR IMAGE NAME)
+## PUT YOUR IMAGE NAME
 my_image = "duos.jpg"
 
 
 # We preprocess your image to fit your algorithm.
 fname = "images/" + my_image
 image = np.array(ndimage.imread(fname, flatten=False))
-my_image = scipy.misc.imresize(image, size=(64,64)).reshape((1, 64*64*3)).T
+my_image = scipy.misc.imresize(image, size=(64, 64)).reshape((1, 64 * 64 * 3)).T
 my_image_prediction = tf_nn.predict_index(my_image)
 
 plt.imshow(image)
