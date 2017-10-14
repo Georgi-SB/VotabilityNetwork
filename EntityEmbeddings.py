@@ -14,9 +14,9 @@ from tensorflow.python.framework import ops
 
 
 class NeuralNetworkTf(object):
-    def __init__(self, layer_dims, layer_types, use_dropout=False, l2_regularization=False, l2_lambda=0.01):
+    def __init__(self, triplets,  l2_regularization=False, l2_lambda=0.01):
         """Arguments:
-            layer_dims: a list of input layer and hidden layer sizes
+            triplets: a list of input layer and hidden layer sizes
             layer_types: a list of strings - the first element is the input and the
             type is ignored, the last is the output and it can be sigmoid, tanh,
             relu, lrelu, softmax, the rest can be sigmoid, relu, tanh, lrelu
@@ -28,20 +28,18 @@ class NeuralNetworkTf(object):
                 2. num_layers excludes
             """
         np.random.seed(1)
+        self.entity_alphabet = []
+        self.relation_alphabet = []
+        self.parameters = {}
+        # element i,j,k is 1 if the triplet (entity_alphabet[i], elation_alphabet[j], entity_alphabet[k])
 
-        self.num_layers = len(layer_dims)  # number of layers in the network. input layer is included
-        self.layer_dims = layer_dims
-        self.layer_types = layer_types
-        assert len(layer_dims) == len(layer_types), "invalid layer specs!"
-        # parameters and caches
-        self.parameters = {}  # keeps the parameters of the nn. keys "bl" and "Wl"
-        self.caches = {}  # keys: "Zl" and "Al" for the input and output activation
-        self.grads = {}  # keeps the calculated gradients of the cost wrt weights. keys "dWl", "dbl"
-        self.writeCaches = True
-        self.are_params_initialized = False
-        # regularization
-        self.l2_regularization = l2_regularization
-        self.l2_lambda = l2_lambda
+        self.sparse_triplet_tensor = []
+
+
+
+    def get_alphabets(self):
+        pass
+
 
     def fit_model(self, X_train, Y_train, X_test, Y_test, learning_rate=0.0001,
                   num_epochs=1500, minibatch_size=32, print_cost=True, optimizer="adam"):

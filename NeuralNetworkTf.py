@@ -431,7 +431,7 @@ print ("Y_test shape: " + str(Y_test.shape))
 
 
 tf_nn = NeuralNetworkTf([12288,25,12,6], ["sigmoid","selu","selu","softmax"], use_dropout=False,
-                        l2_regularization=True, l2_lambda=0.07)
+                        l2_regularization=True, l2_lambda=0.001)
 
 tf_nn.fit_model(X_train=X_train,Y_train=Y_train, X_test = X_test, Y_test = Y_test, learning_rate=0.0001,
                   num_epochs=1500, minibatch_size=32, print_cost=True, optimizer = "adam")
