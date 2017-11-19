@@ -178,12 +178,13 @@ word_embedding_layer_trainable = tf.keras.layers.Embedding(input_dim=len(word_in
                             trainable=True)
 
 word_sequence_input = tf.keras.layers.Input(shape=(MAX_SENTENCE_LENGTH,), dtype='int32', name ="word_input")
+#add non trainable word embedding sequence
 word_embedded_sequence_glove = word_embedding_layer_glove(word_sequence_input)
 
 
 
 #add a third word level learnable channel
-word_embedded_sequence_trainable = word_embedding_layer_trainable(word_sequence_input_glove)
+word_embedded_sequence_trainable = word_embedding_layer_trainable(word_sequence_input)
 
 
 #stack the glove/word2vec representation with the char level one
@@ -210,7 +211,7 @@ x = tf.keras.layers.concatenate([x_char_out, x_word_out])
 #preparing a conv net
 
 
-x = tf.keras.layers.Conv1D(filters = 128, kernel_size = 5, padding = 'same', activation='relu')(embedded_sequences)
+x = tf.keras.layers.Conv1D(filters = 128, kernel_size = 5, padding = 'same', activation='relu')(x)
 x = tf.keras.layers.MaxPooling1D(pool_size=5, strides = 1)(x)
 x = tf.keras.layers.Conv1D(filters =128, kernel_size = 5, padding = 'same', activation='relu')(x)
 x = tf.keras.layers.MaxPooling1D(pool_size=5, strides = 1)(x)
