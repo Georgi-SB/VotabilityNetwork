@@ -11,7 +11,9 @@
 
 import tensorflow as tf
 import numpy as np
+from tensorflow.python.framework import ops
 import os
+import matplotlib.pyplot as plt
 
 
 
@@ -25,6 +27,11 @@ MAX_SENTENCE_LENGTH = 20
 CHAR_MAX_SENTENCE_LENGTH = 200
 VOCABULARY_SIZE = 100000
 CHARACTER_VOCABULARY_SIZE = 100
+NUM_EPOCHS = 10
+
+tf.reset_default_graph()
+ops.reset_default_graph()  # to be able to rerun the model without overwriting tf variables
+
 
 # define documents
 docs = ['Well done!',
@@ -40,6 +47,7 @@ docs = ['Well done!',
 # define class labels
 labels = [1,1,1,1,1,0,0,0,0,0]
 labels = np.asarray(labels)
+labels = np.reshape(labels,[1,labels.shape[0]])
 
 ##################################################################################################################
 ##################################################################################################################
@@ -97,7 +105,7 @@ for idx_sentence in range(len(docs)): #loop over sentences
             tmp = np.ndarray.flatten(np.asarray(char_tokenizer.texts_to_sequences(word_string)))
             word_char_input[idx_sentence, idx_word, 0:len(tmp)] = tmp
 
-word_char_input_flat = np.reshape(word_char_input,
+word_char_data = np.reshape(word_char_input,
                                   [ word_char_input.shape[0], word_char_input.shape[1]*word_char_input.shape[2]])
 
 
@@ -138,14 +146,14 @@ for word, i in word_index.items():
 indices = np.arange(word_data.shape[0]) #sentence indices
 np.random.shuffle(indices)
 word_data = word_data[indices]
-labels = labels[indices]
+labels[0, :] = labels[0, indices]
 
 nb_validation_samples = int(VALIDATION_SPLIT * word_data.shape[0])
 
 x_train = word_data[:-nb_validation_samples]
-y_train = labels[:-nb_validation_samples]
+y_train = labels[:, :-nb_validation_samples]
 x_val = word_data[-nb_validation_samples:]
-y_val = labels[-nb_validation_samples:]
+y_val = labels[:, -nb_validation_samples:]
 
 
 ##################################################################################################################
@@ -170,51 +178,47 @@ def conv1d_relu(input, kernel_shape, bias_shape, stride, padding , name = 'name'
 ###### create relevant placeholders ####
 # sentence-char data
 size_of_input_sentence_char_data = char_data.shape[1]
-sentence_char_data_placeholder = tf.placeholder(dtype=tf.float32, shape= [None,size_of_input_sentence_char_data ])
+sentence_char_data_placeholder = tf.placeholder(dtype=tf.int32, shape= [None,size_of_input_sentence_char_data ])
 # sentence-word data
 size_of_input_sentence_word_data = word_data.shape[1]
-word_data_placeholder = tf.placeholder(dtype=tf.float32, shape= [None,size_of_input_sentence_word_data ])
+word_data_placeholder = tf.placeholder(dtype=tf.int32, shape= [None,size_of_input_sentence_word_data ])
 # char-word data
-size_of_input_char_word_data = word_char_input_flat.shape[1]
-char_word_data_placeholder = tf.placeholder(dtype=tf.float32, shape= [None,size_of_input_char_word_data ])
+size_of_input_char_word_data = word_char_data.shape[1]
+char_word_data_placeholder = tf.placeholder(dtype=tf.int32, shape= [None,size_of_input_char_word_data ])
+# labels
+labels_placeholder = tf.placeholder(dtype = tf.float32, shape = [None, 1])
+
 ######
 
 # create embedding layers
 
 # character embeddings variable. size is: char_vocabulaty , char embedding dimensions
 embedding_char_weights = tf.get_variable("embedding_char_weights",shape = [len(char_index) + 1, CHAR_EMBEDDING_DIM],
-        initializer=tf.truncated_normal_initializer(), name = 'embedding_char_weights')
+        initializer=tf.truncated_normal_initializer())
 
 embedded_sentence_char_sequence  = tf.nn.embedding_lookup(params = embedding_char_weights,
-                                                          ids = sentence_char_data_placeholder,
-
-
-x_char = tf.keras.layers.Conv1D(filters = 64, kernel_size = 5, padding = 'valid', activation='relu')(embedded_sentence_char_sequence)
-x_char = tf.keras.layers.MaxPooling1D(pool_size=3)(x_char)
-x_char = tf.keras.layers.Conv1D(filters = 64, kernel_size = 5, padding = 'valid', activation='relu')(x_char)
-x_char = tf.keras.layers.MaxPooling1D(pool_size=3)(x_char)
-x_char = tf.keras.layers.Conv1D(filters = 64, kernel_size = 5, padding = 'valid', activation='relu')(x_char)
-# x = tf.keras.layers.MaxPooling1D(pool_size=35)(x)  # global max pooling
-x_char_out_tensor = tf.keras.layers.Flatten()(x_char)
-
-                                                          name = 'embedded_sentence_char_sequence' )
-#apply some convs on the sentence char data
+                                                          ids = sentence_char_data_placeholder)
+#apply some convs on the sentence char data todo: add inception layer instead
 x_char = tf.layers.conv1d(inputs = embedded_sentence_char_sequence, filters= 64,
-                          kernel_size= 5, padding='valid', activation='relu' )
-x_char = tf.layers.max_pooling1d( pool_size= 3, strides = 1, padding = 'valid')
+                          kernel_size= 5,  strides = 1, padding='valid', activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer() )
 
-x_char = tf.layers.conv1d(inputs = embedded_sentence_char_sequence, filters= 64,
-                          kernel_size= 5, padding='valid', activation='relu' )
-x_char = tf.layers.max_pooling1d( pool_size= 3, strides = 3, padding = 'valid')
-x_char = tf.layers.conv1d(inputs = embedded_sentence_char_sequence, filters= 64,
-                          kernel_size= 5, padding='valid', activation='relu' )
-x_char = tf.layers.max_pooling1d( pool_size= 3, strides = 3, padding = 'valid')
-x_char_out_tensor = tf.layers.Flatten(x_char)
+x_char = tf.layers.max_pooling1d(inputs = x_char, pool_size= 2, strides = 2, padding = 'valid')
+
+x_char = tf.layers.conv1d(inputs = x_char, filters= 64,
+                          kernel_size= 5, padding='valid', strides = 1, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer() )
+
+x_char = tf.layers.max_pooling1d(inputs = x_char,  pool_size= 3, strides = 3, padding = 'valid')
+
+x_char = tf.layers.conv1d(inputs = x_char, filters= 64,
+                          kernel_size= 5, padding='valid', activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer() )
+
+x_char = tf.layers.max_pooling1d(inputs = x_char, pool_size= 3, strides = 3, padding = 'valid')
+
+x_char_out_tensor = tf.layers.Flatten()(x_char)
 
 #word-char-embeddings
 embedded_word_char_sequence1  = tf.nn.embedding_lookup(params = embedding_char_weights,
-                                                          ids = char_word_data_placeholder,
-                                                          name = 'embedded_word_char_sequence1' )
+                                                          ids = char_word_data_placeholder )
 #apply conv1d to get into right shape to stack on the other word embeddings
 
 
@@ -226,12 +230,13 @@ filter_dim2 = CHAR_EMBEDDING_DIM
 #                                          bias_shape = [EMBEDDING_DIM], stride = max_word_length,
 #                                          name = 'embedded_word_char_sequence', padding = 'valid')
 
-embedded_word_char_sequence = tf.layers.conv1d(inputs= embedded_word_char_sequence1, filters= max_word_length,
+embedded_word_char_sequence = tf.layers.conv1d(inputs= embedded_word_char_sequence1, filters= EMBEDDING_DIM,
                                                kernel_size = max_word_length, strides= max_word_length,
-                                               activation='relu')
+                                               activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 #test: should have the same dimension as:
-embedded_word_char_sequence_test =   tf.keras.layers.Conv1D(filters=EMBEDDING_DIM, kernel_size = max_word_length, strides= max_word_length, activation = 'relu')(embedded_word_char_sequence)
+#embedded_word_char_sequence_test =   tf.keras.layers.Conv1D(filters=EMBEDDING_DIM, kernel_size = max_word_length, strides= max_word_length,
+#                                                            activation = tf.nn.relu)(embedded_word_char_sequence)
 
 
 
@@ -240,14 +245,13 @@ embedded_word_char_sequence_test =   tf.keras.layers.Conv1D(filters=EMBEDDING_DI
 # word embeddings: one trainable and one fixed - say glove
 embedding_word_weights_trainable = tf.get_variable("embedding_word_weights_trainable",
                                                     shape = [len(word_index) + 1, EMBEDDING_DIM],
-                                                    initializer=tf.truncated_normal_initializer(),
-                                                   name='embedding_word_weights_trainable')
+                                                    initializer=tf.truncated_normal_initializer())
 
 
 embedding_word_weights_glove = tf.get_variable("embedding_word_weights_glove",
                                                 shape = [len(word_index) + 1, EMBEDDING_DIM],
                                                 initializer=tf.constant_initializer(embedding_matrix),
-                                                trainable=False, name='embedding_word_weights_glove')
+                                                trainable=False)
 
 
 embedded_word_sequence_glove  = tf.nn.embedding_lookup(params = embedding_word_weights_glove,
@@ -278,40 +282,55 @@ def conv_relu(input, kernel_shape, bias_shape):
 #do some convolutions
 #todo - implement inception layer here to look at 1-2-3-4-grams
 
-x_word =  tf.layers.conv2d(inputs = embedded_word_tensor, filters = 64, kernel_size = (2,100), padding = 'valid', activation='relu' )
+x_word =  tf.layers.conv2d(inputs = embedded_word_tensor, filters = 64, kernel_size = (2,100), padding = 'valid',
+                           kernel_initializer=tf.contrib.layers.xavier_initializer(), activation=tf.nn.relu)
 
 x_word_out_tensor = tf.layers.Flatten()(x_word)
 
-x = tf.concat([x_word_out_tensor, x_char_out_tensor ])
+x = tf.concat(values = [x_word_out_tensor, x_char_out_tensor ], axis = -1)
 
 
 
-x = tf.layers.Dense(128, activation='relu')(x)
-x = tf.layers.Dense(32, activation='relu')(x)
-preds_x = tf.layers.Dense(1, activation='sigmoid')(x)
-#preds = tf.keras.layers.Dense(len(labels_index), activation='softmax')(x)   char_sequence_input,
+x = tf.layers.Dense(128, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())(x)
+x = tf.layers.Dense(32, activation=tf.nn.relu,kernel_initializer=tf.contrib.layers.xavier_initializer())(x)
+preds_x = tf.layers.Dense(1, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())(x)
+
+loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels = tf.transpose(labels_placeholder), logits = preds_x) )
 
 
-model = tf.keras.models.Model(inputs=[ sentence_char_input_tensor, word_char_input_tensor, word__input_tensor],
-                              outputs=[preds_x])
+learning_rate = 0.01
 
 
-print(model.summary())
-model.compile(loss='binary_crossentropy',
-              optimizer='adam',
-              metrics=['acc'])
+optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(loss = loss)
+# Initialize all the variables
+init = tf.global_variables_initializer()
 
-# loss='categorical_crossentropy'
+# Start the session to compute the tensorflow graph
+costs = []
+with tf.Session() as sess:
 
+    # Run the initialization
+    sess.run(init)
 
-# happy learning!
-model.fit(x_train, y_train, validation_data=(x_val, y_val),
-          epochs=2, batch_size=128,verbose=1)
+    # Do the training loop
+    for epoch in range(NUM_EPOCHS):
 
+        epoch_cost = 0.  # Defines a cost related to an epoch
 
-# evaluate the model
-loss, accuracy = model.evaluate(padded_docs, labels, verbose=0)
-print('Accuracy: %f' % (accuracy*100))
+        dummy, epoch_cost = sess.run([optimizer, loss], feed_dict={sentence_char_data_placeholder: char_data,
+                                                                   word_data_placeholder: word_data,
+                                                                   char_word_data_placeholder: word_char_data,
+                                                                   labels_placeholder: np.transpose(y_train)})
 
+        # Print the cost for every 100-th epoch
+        if epoch % 1 == 0:
+            print("Cost after epoch %i: %f" % (epoch, epoch_cost))
+        costs.append(epoch_cost)
 
+# plot the cost
+plt.plot(np.squeeze(costs))
+plt.ylabel('cost')
+plt.xlabel('iterations (per tens)')
+plt.title("Learning rate =" + str(learning_rate))
+plt.show()
 
