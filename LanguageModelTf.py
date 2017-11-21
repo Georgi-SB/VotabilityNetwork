@@ -150,19 +150,45 @@ y_val = labels[-nb_validation_samples:]
 
 ##################################################################################################################
 ##################################################################################################################
+def conv1d_relu(input, kernel_shape, bias_shape, stride, padding , name = 'name'):
+    # Create variable named "weights".
+    weights = tf.get_variable("weights", kernel_shape,
+        initializer=tf.truncated_normal_initializer())
+    # Create variable named "biases".
+    biases = tf.get_variable("biases", bias_shape,
+        initializer=tf.constant_initializer(0.0))
+    conv = tf.nn.conv1d(value = input, filters = weights, stride = stride, name = name, padding = padding)
+    return tf.nn.relu(conv + biases)
+
+
 
 
 ##################################################################################################################
 #################################preparing the sentence-character level  branch###################################
 
 
-char_embedding_layer = tf.keras.layers.Embedding(input_dim=len(char_index) + 1,
-                            output_dim = CHAR_EMBEDDING_DIM,
-                            input_length=char_data.shape[1],
-                            trainable=True)
+###### create relevant placeholders ####
+# sentence-char data
+size_of_input_sentence_char_data = char_data.shape[1]
+sentence_char_data_placeholder = tf.placeholder(dtype=tf.float32, shape= [None,size_of_input_sentence_char_data ])
+# sentence-word data
+size_of_input_sentence_word_data = word_data.shape[1]
+word_data_placeholder = tf.placeholder(dtype=tf.float32, shape= [None,size_of_input_sentence_word_data ])
+# char-word data
+size_of_input_char_word_data = word_char_input_flat.shape[1]
+char_word_data_placeholder = tf.placeholder(dtype=tf.float32, shape= [None,size_of_input_char_word_data ])
+######
 
-sentence_char_input_tensor = tf.keras.layers.Input(shape=(CHAR_MAX_SENTENCE_LENGTH,), dtype='int32', name ="char_input")
-embedded_sentence_char_sequence = char_embedding_layer(sentence_char_input_tensor)
+# create embedding layers
+
+# character embeddings variable. size is: char_vocabulaty , char embedding dimensions
+embedding_char_weights = tf.get_variable("embedding_char_weights",shape = [len(char_index) + 1, CHAR_EMBEDDING_DIM],
+        initializer=tf.truncated_normal_initializer(), name = 'embedding_char_weights')
+
+embedded_sentence_char_sequence  = tf.nn.embedding_lookup(params = embedding_char_weights,
+                                                          ids = sentence_char_data_placeholder,
+
+
 x_char = tf.keras.layers.Conv1D(filters = 64, kernel_size = 5, padding = 'valid', activation='relu')(embedded_sentence_char_sequence)
 x_char = tf.keras.layers.MaxPooling1D(pool_size=3)(x_char)
 x_char = tf.keras.layers.Conv1D(filters = 64, kernel_size = 5, padding = 'valid', activation='relu')(x_char)
@@ -171,109 +197,103 @@ x_char = tf.keras.layers.Conv1D(filters = 64, kernel_size = 5, padding = 'valid'
 # x = tf.keras.layers.MaxPooling1D(pool_size=35)(x)  # global max pooling
 x_char_out_tensor = tf.keras.layers.Flatten()(x_char)
 
+                                                          name = 'embedded_sentence_char_sequence' )
+#apply some convs on the sentence char data
+x_char = tf.layers.conv1d(inputs = embedded_sentence_char_sequence, filters= 64,
+                          kernel_size= 5, padding='valid', activation='relu' )
+x_char = tf.layers.max_pooling1d( pool_size= 3, strides = 1, padding = 'valid')
+
+x_char = tf.layers.conv1d(inputs = embedded_sentence_char_sequence, filters= 64,
+                          kernel_size= 5, padding='valid', activation='relu' )
+x_char = tf.layers.max_pooling1d( pool_size= 3, strides = 3, padding = 'valid')
+x_char = tf.layers.conv1d(inputs = embedded_sentence_char_sequence, filters= 64,
+                          kernel_size= 5, padding='valid', activation='relu' )
+x_char = tf.layers.max_pooling1d( pool_size= 3, strides = 3, padding = 'valid')
+x_char_out_tensor = tf.layers.Flatten(x_char)
+
+#word-char-embeddings
+embedded_word_char_sequence1  = tf.nn.embedding_lookup(params = embedding_char_weights,
+                                                          ids = char_word_data_placeholder,
+                                                          name = 'embedded_word_char_sequence1' )
+#apply conv1d to get into right shape to stack on the other word embeddings
 
 
+nb_filters = EMBEDDING_DIM
+filter_dim1 = max_word_length
+filter_dim2 = CHAR_EMBEDDING_DIM
+#embedded_word_char_sequence = conv1d_relu(input = embedded_word_char_sequence1,
+#                                          kernel_shape= [max_word_length, CHAR_EMBEDDING_DIM, EMBEDDING_DIM],
+#                                          bias_shape = [EMBEDDING_DIM], stride = max_word_length,
+#                                          name = 'embedded_word_char_sequence', padding = 'valid')
 
-##################################################################################################################
-##################################################################################################################
+embedded_word_char_sequence = tf.layers.conv1d(inputs= embedded_word_char_sequence1, filters= max_word_length,
+                                               kernel_size = max_word_length, strides= max_word_length,
+                                               activation='relu')
 
-
-##################################################################################################################
-#################################preparing the word-character level  branch###################################
-
-
-#prepare the word-char branch
-word_char_input_tensor = tf.keras.layers.Input(shape=(word_data.shape[1] * max_word_length,),
-                                                 dtype='int32', name ="word_char_input")
-embedded_word_char_sequence = char_embedding_layer(word_char_input_tensor)
-#apply 1d conv to aggregate along words. stride is precisely the max word length in chars
-x_word_char = tf.keras.layers.Conv1D(filters=EMBEDDING_DIM, kernel_size = max_word_length, strides= max_word_length, activation = 'relu')(embedded_word_char_sequence)
-#output should be max_sentence_length x EMBEDDING_DIM where each row represents the char level representation of the words
-# this represents a new char level word embedding of the same size as the one used via glove or word2vec
-
-
-##################################################################################################################
-##################################################################################################################
-
-
-##################################################################################################################
-#################################preparing the word level  branch###################################
-
-word_embedding_layer_glove = tf.keras.layers.Embedding(input_dim=len(word_index) + 1,
-                            output_dim = EMBEDDING_DIM,
-                            weights=[embedding_matrix],
-                            input_length=word_data.shape[1],
-                            trainable=False)
-
-word_embedding_layer_trainable = tf.keras.layers.Embedding(input_dim=len(word_index) + 1,
-                            output_dim = EMBEDDING_DIM,
-                            weights=[embedding_matrix],
-                            input_length=word_data.shape[1],
-                            trainable=True)
-
-word__input_tensor = tf.keras.layers.Input(shape=(MAX_SENTENCE_LENGTH,), dtype='int32', name ="word_input")
-#add non trainable word embedding sequence
-word_embedded__glove = word_embedding_layer_glove(word__input_tensor)
-word_embedded__trainable = word_embedding_layer_trainable(word__input_tensor)
-
-
-##################################################################################################################
-##################################################################################################################
-
-
-##################################################################################################################
-################################# merge the 3 word level inputs                 ###################################
-x_word1 = tf.keras.layers.add( [word_embedded__glove, word_embedded__trainable, x_word_char] )
-#x_word = tf.concat( [word_embedded__glove, word_embedded__trainable, x_word_char], axis=-1 )
-x_word = tf.keras.layers.Concatenate(axis=-1)( [word_embedded__glove, word_embedded__trainable, x_word_char])
-input_shape = x_word.shape
-output_shape = [int(input_shape[1]),  3, int(input_shape[2]//3)]
-x_word = tf.keras.layers.Reshape(target_shape=output_shape)(x_word)
-x_word = tf.keras.layers.Permute( dims = [1,3,2])(x_word)
-#this actually should be equivalent to
-#need the work around since tf.keras.backend.stack has an issue and disrupts the graph
-#x_word_test = tf.keras.backend.stack( [word_embedded__glove, word_embedded__trainable, x_word_char], axis=-1)
-#assert x_word==x_word_test
-
-#setattr(x_word, '_keras_history', getattr(x_word1, '_keras_history'))
-#setattr(x_word, '_keras_history', getattr(word_embedded__trainable, '_keras_history'))
-#setattr(x_word, '_keras_history', getattr(x_word_char, '_keras_history'))
-#setattr(x_word, '_keras_shape', getattr(right_branch.output, '_keras_shape'))
-#setattr(x_word, '_uses_learning_phase', getattr(x_word1, '_uses_learning_phase'))
+#test: should have the same dimension as:
+embedded_word_char_sequence_test =   tf.keras.layers.Conv1D(filters=EMBEDDING_DIM, kernel_size = max_word_length, strides= max_word_length, activation = 'relu')(embedded_word_char_sequence)
 
 
 
 
 
+# word embeddings: one trainable and one fixed - say glove
+embedding_word_weights_trainable = tf.get_variable("embedding_word_weights_trainable",
+                                                    shape = [len(word_index) + 1, EMBEDDING_DIM],
+                                                    initializer=tf.truncated_normal_initializer(),
+                                                   name='embedding_word_weights_trainable')
+
+
+embedding_word_weights_glove = tf.get_variable("embedding_word_weights_glove",
+                                                shape = [len(word_index) + 1, EMBEDDING_DIM],
+                                                initializer=tf.constant_initializer(embedding_matrix),
+                                                trainable=False, name='embedding_word_weights_glove')
+
+
+embedded_word_sequence_glove  = tf.nn.embedding_lookup(params = embedding_word_weights_glove,
+                                                          ids = word_data_placeholder,
+                                                          name = 'embedded_word_sequence_glove' )
+
+embedded_word_sequence_trainable  = tf.nn.embedding_lookup(params = embedding_word_weights_trainable,
+                                                          ids = word_data_placeholder,
+                                                          name = 'embedded_word_sequence_trainable' )
+
+
+# stack the three  word embeddings into three channels to use convolutions on them
+
+embedded_word_tensor = tf.stack(values=[embedded_word_sequence_glove, embedded_word_sequence_trainable, embedded_word_char_sequence], axis = -1, name = 'embedded_word_tensor'  )
+
+
+def conv_relu(input, kernel_shape, bias_shape):
+    # Create variable named "weights".
+    weights = tf.get_variable("weights", kernel_shape,
+        initializer=tf.random_normal_initializer())
+    # Create variable named "biases".
+    biases = tf.get_variable("biases", bias_shape,
+        initializer=tf.constant_initializer(0.0))
+    conv = tf.nn.conv2d(input, weights,
+        strides=[1, 1, 1, 1], padding='SAME')
+    return tf.nn.relu(conv + biases)
 
 #do some convolutions
 #todo - implement inception layer here to look at 1-2-3-4-grams
 
-x_word = tf.keras.layers.Conv2D(filters = 64, kernel_size = (2,100), padding = 'valid', activation='relu')(x_word)
+x_word =  tf.layers.conv2d(inputs = embedded_word_tensor, filters = 64, kernel_size = (2,100), padding = 'valid', activation='relu' )
 
-x_word_out = tf.keras.layers.Flatten()(x_word)
+x_word_out_tensor = tf.layers.Flatten()(x_word)
 
-
-##################################################################################################################
-##################################################################################################################
-
-
-##################################################################################################################
-################################# merge the word and char  level inputs        ###################################
+x = tf.concat([x_word_out_tensor, x_char_out_tensor ])
 
 
 
-
-x = tf.keras.layers.concatenate([x_char_out_tensor, x_word_out])
-
-
-x = tf.keras.layers.Dense(128, activation='relu')(x)
-x = tf.keras.layers.Dense(32, activation='relu')(x)
-preds_x = tf.keras.layers.Dense(1, activation='sigmoid')(x)
+x = tf.layers.Dense(128, activation='relu')(x)
+x = tf.layers.Dense(32, activation='relu')(x)
+preds_x = tf.layers.Dense(1, activation='sigmoid')(x)
 #preds = tf.keras.layers.Dense(len(labels_index), activation='softmax')(x)   char_sequence_input,
+
+
 model = tf.keras.models.Model(inputs=[ sentence_char_input_tensor, word_char_input_tensor, word__input_tensor],
                               outputs=[preds_x])
-
 
 
 print(model.summary())
@@ -287,7 +307,6 @@ model.compile(loss='binary_crossentropy',
 # happy learning!
 model.fit(x_train, y_train, validation_data=(x_val, y_val),
           epochs=2, batch_size=128,verbose=1)
-
 
 
 # evaluate the model
