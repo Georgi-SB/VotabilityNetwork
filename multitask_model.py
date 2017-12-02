@@ -1,8 +1,8 @@
 import numpy as np
 import os
 import tensorflow as tf
+import keras as keras
 import math
-import tensorflow.python.keras as tk
 
 
 from .data_utils import minibatches, pad_sequences, get_chunks
@@ -10,14 +10,13 @@ from .general_utils import Progbar
 from .base_model import BaseModel
 
 
-class MultitaskModel(BaseModel):
+class NERModel(BaseModel):
     """Specialized class of Model for NER"""
 
     def __init__(self, config):
-        super(MultitaskModel, self).__init__(config)
+        super(NERModel, self).__init__(config)
         self.idx_to_tag = {idx: tag for tag, idx in
                            self.config.vocab_tags.items()}
-
 
     def create_functional_model(self):
         """Get a multitask functional model"""
@@ -35,7 +34,7 @@ class MultitaskModel(BaseModel):
 
         USE_CONVNET = True
         USE_CHAR_DIM_REDUCTION = True
-        CHAR_DIM_REDUCED = 50
+        CHAR_DIM_REDUCED = 20
         NB_CONV_FILTERS_WORD_BOTTLENECK = 16
         NB_CONV_FILTERS_CHAR_BOTTLENECK = 16
         NB_CONV_FILTERS_WORD = 16
@@ -50,7 +49,7 @@ class MultitaskModel(BaseModel):
 
 
         # WORDS EMBEDDINGS
-        embedding_matrix = np.zeros((len(WORD_VOCAB_SIZE) + 1, WORD_EMBEDDING_DIM))
+        embedding_matrix = np.zeros((WORD_VOCAB_SIZE , WORD_EMBEDDING_DIM))
         for  i in range(WORD_VOCAB_SIZE): # for word, i in word_index.items():
             embedding_vector = np.random.rand(WORD_EMBEDDING_DIM)  # embeddings_index.get(word)
             if embedding_vector is not None:
@@ -59,53 +58,65 @@ class MultitaskModel(BaseModel):
 
 
         #shape: max sentence length_in_batch
-        word_inputs = tk.Input(shape=(max_sentence_len_in_batch, ) )
+        word_inputs = tf.keras.Input(shape=(max_sentence_len_in_batch, ) )
 
         #########################################################################
         # output shape: batch_size , sentence_length, WORD_EMBEDDING_DIM
-        word_embeddings = tk.layers.TimeDistributed( tk.layers.Embedding (
+        word_embeddings = tf.keras.layers.Embedding (
             input_dim=WORD_VOCAB_SIZE, output_dim=WORD_EMBEDDING_DIM,
-            weights=embedding_matrix, trainable=False))(word_inputs)
+            weights=[embedding_matrix], trainable=False, input_length = max_sentence_len_in_batch)(word_inputs)
         ########################################################################
 
 
         # CHAR EMBEDDINGS
-        char_inputs = tk.Input(shape = (max_sentence_len_in_batch, max_word_len_in_batch) )
+        char_inputs = tf.keras.Input(shape = (max_sentence_len_in_batch, max_word_len_in_batch) )
         #embed chars
         ###########################################################################
         # output shape: batch_size , sentence_length, word_length, CHAR_EMBEDDING_DIM
         u_limit = math.sqrt(3.0 / CHAR_EMBEDDING_DIM)
-        char_embeddings = tk.layers.TimeDistributed(
-            tk.layers.Embedding(input_dim= CHAR_VOCAB_SIZE, output_dim=CHAR_EMBEDDING_DIM,
-                                      embeddings_initializer= tk.initializers.RandomUniform(minval=-u_limit, maxval=u_limit),
+        char_embeddings = tf.keras.layers.TimeDistributed(
+            tf.keras.layers.Embedding(input_dim= CHAR_VOCAB_SIZE, output_dim=CHAR_EMBEDDING_DIM,input_length= max_word_len_in_batch,
+                                      embeddings_initializer= tf.keras.initializers.RandomUniform(minval=-u_limit, maxval=u_limit),
                                       embeddings_regularizer=None, activity_regularizer=None) )(char_inputs)
         ############################################################################
 
 
-        ############################################################################
-        # flatten last two dimensions
-        # output shape: batch_size , sentence_length, word_length x CHAR_EMBEDDING_DIM
-        # in keras you do not specify the batch dimension
-        tmp_shape = tk.backend.shape(char_embeddings)
-        char_embeddings = tk.backend.reshape( (tmp_shape[0], tmp_shape[1]*tmp_shape[2] ))(char_embeddings)
-        ############################################################################
+
 
         if USE_CHAR_DIM_REDUCTION:
             # reduce char embeddings dimension
             # output shape:   batch_size , sentence_length, CHAR_DIM_REDUCED
-            char_embeddings = tk.layers.Conv1D( filters=CHAR_DIM_REDUCED,
-                                                   kernel_size=1, strides=1,
-                                                   padding='same')(char_embeddings)
+            char_embeddings = tf.keras.layers.TimeDistributed(tf.keras.layers.Conv1D( filters=CHAR_DIM_REDUCED,
+                                                   kernel_size=2, strides=1,
+                                                   padding='same'))(char_embeddings)
 
+        ############################################################################
+        # flatten last two dimensions
+        # output shape: batch_size , sentence_length, word_length x CHAR_EMBEDDING_DIM
+         # in keras you do not specify the batch dimension
+        #tmp_shape = tf.shape(char_embeddings)
+        #char_embeddings = keras.layers.Reshape(
+        #    target_shape=[max_sentence_len_in_batch, max_word_len_in_batch * CHAR_DIM_REDUCED])(char_embeddings)
+        ############################################################################
 
 
         ###########################################################################
         # input into the LSTM: word_length  CHAR_EMBEDDING_DIM
         # output shape: batch_size , sentence_length,  CHAR_LSTM_SIZE
-        if CHAR_EMBEDDINGS_biLSTM:
-            char_embeddings = tk.layers.TimeDistributed(tf.keras.layers.Bidirectional(
-                tk.layers.LSTM(units = CHAR_LSTM_SIZE, return_sequences=False )) , name= 'character_lstm')(char_embeddings)
+        # THIS RUNS INTO PROBLEM - bug in tf integration into tf
+        #if CHAR_EMBEDDINGS_biLSTM:
+        #    char_embeddings_layer = tf.keras.layers.TimeDistributed(keras.layers.Bidirectional(
+        #        tf.keras.layers.LSTM(units = CHAR_LSTM_SIZE, return_sequences=False )) )
+        #    char_embeddings = char_embeddings_layer(char_embeddings)
         ###########################################################################
+        #REPLACE WITH
+        if CHAR_EMBEDDINGS_biLSTM:
+            s=tf.shape(char_embeddings)
+            char_embeddings = tf.keras.backend.reshape(char_embeddings, (s[0]*max_sentence_len_in_batch,max_word_len_in_batch, CHAR_DIM_REDUCED))
+            char_embeddings_layer = tf.keras.layers.Bidirectional(
+                tf.keras.layers.LSTM(units = CHAR_LSTM_SIZE, return_sequences=False ))
+            char_embeddings = char_embeddings_layer(char_embeddings)
+            char_embeddings = tf.keras.backend.reshape(char_embeddings, (s[0] , max_sentence_len_in_batch, 2*CHAR_LSTM_SIZE))
 
 
 
@@ -114,116 +125,150 @@ class MultitaskModel(BaseModel):
         if USE_CONVNET:
             #INCEPTION CONV NET ON WORDS:
             # output shape: batch_size , sentence_length, NB_CONV_FILTERS_WORD
-            tower1w = tk.layers.Conv1D(filters=NB_CONV_FILTERS_WORD_BOTTLENECK,
+            tower1w = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_WORD_BOTTLENECK,
                                                    kernel_size=1, strides=1,
                                                    padding='same')(word_embeddings)
-            tower1w = tk.layers.Conv1D(filters = NB_CONV_FILTERS_WORD,
+            tower1w = tf.keras.layers.Conv1D(filters = NB_CONV_FILTERS_WORD,
                                              kernel_size = 2,
-                                             stride = 1, activation='relu',
+                                             strides = 1, activation='relu',
                                              padding = 'same')(tower1w)
 
             # output shape: batch_size , sentence_length, NB_CONV_FILTERS_WORD
-            tower2w = tk.layers.Conv1D(filters=NB_CONV_FILTERS_WORD_BOTTLENECK,
+            tower2w = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_WORD_BOTTLENECK,
                                                     kernel_size=1, strides=1,
                                                     padding='same')(word_embeddings)
-            tower2w = tk.layers.Conv1D(filters=NB_CONV_FILTERS_WORD,
+            tower2w = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_WORD,
                                              kernel_size=3,
-                                             stride=1, activation='relu',
+                                             strides=1, activation='relu',
                                              padding='same')(tower2w)
             # output shape: batch_size , sentence_length, NB_CONV_FILTERS_WORD
-            tower3w = tk.layers.Conv1D(filters=NB_CONV_FILTERS_WORD_BOTTLENECK,
+            tower3w = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_WORD_BOTTLENECK,
                                                     kernel_size=1, strides=1,
                                                     padding='same')(word_embeddings)
-            tower3w = tk.layers.Conv1D(filters=NB_CONV_FILTERS_WORD,
+            tower3w = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_WORD,
                                              kernel_size=4,
-                                             stride=1, activation='relu',
+                                             strides=1, activation='relu',
                                              padding='same')(tower3w)
             # output shape: batch_size , sentence_length, NB_CONV_FILTERS_WORD
-            tower4w = tk.layers.Conv1D(filters=NB_CONV_FILTERS_WORD_BOTTLENECK,
+            tower4w = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_WORD_BOTTLENECK,
                                                     kernel_size=1, strides=1,
                                                     padding='same')(word_embeddings)
-            tower4w = tk.layers.Conv1D(filters=NB_CONV_FILTERS_WORD,
+            tower4w = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_WORD,
                                              kernel_size=5,
-                                             stride=1, activation='relu',
+                                             strides=1, activation='relu',
                                              padding='same')(tower4w)
 
             # output shape: batch_size , sentence_length, NB_CONV_FILTERS_WORD
-            tower5w = tk.layers.Conv1D(filters=NB_CONV_FILTERS_WORD,
+            tower5w = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_WORD,
                                              kernel_size=1,
-                                             stride=1, activation='relu',
+                                             strides=1, activation='relu',
                                              padding='same')(word_embeddings)
 
             # output shape: batch_size , sentence_length, 5 x NB_CONV_FILTERS_WORD
-            word_inception_out = tk.layers.Concatenate([tower1w, tower2w, tower3w, tower4w, tower5w], axis=-1)
+            word_inception_out = tf.keras.layers.concatenate([tower1w, tower2w, tower3w, tower4w, tower5w], axis=-1)
 
 
 
             # INCEPTION CONV NET ON CHARS:
             # output shape: batch_size , sentence_length, NB_CONV_FILTERS_CHAR
-            tower1c = tk.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR_BOTTLENECK,
+            tower1c = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR_BOTTLENECK,
                                       kernel_size=1, strides=1,
                                       padding='same')(char_embeddings)
-            tower1c = tk.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR,
+            tower1c = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR,
                                       kernel_size=2,
-                                      stride=1, activation='relu',
+                                      strides=1, activation='relu',
                                       padding='same')(tower1c)
 
             # output shape: batch_size , sentence_length, NB_CONV_FILTERS_CHAR
-            tower2c = tk.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR_BOTTLENECK,
+            tower2c = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR_BOTTLENECK,
                                       kernel_size=1, strides=1,
                                       padding='same')(char_embeddings)
-            tower2c = tk.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR,
+            tower2c = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR,
                                       kernel_size=3,
-                                      stride=1, activation='relu',
+                                      strides=1, activation='relu',
                                       padding='same')(tower2c)
             # output shape: batch_size , sentence_length, NB_CONV_FILTERS_CHAR
-            tower3c = tk.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR_BOTTLENECK,
+            tower3c = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR_BOTTLENECK,
                                       kernel_size=1, strides=1,
                                       padding='same')(char_embeddings)
-            tower3c = tk.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR,
+            tower3c = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR,
                                       kernel_size=4,
-                                      stride=1, activation='relu',
+                                      strides=1, activation='relu',
                                       padding='same')(tower3c)
             # output shape: batch_size , sentence_length, NB_CONV_FILTERS_CHAR
-            tower4c = tk.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR_BOTTLENECK,
+            tower4c = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR_BOTTLENECK,
                                       kernel_size=1, strides=1,
                                       padding='same')(char_embeddings)
-            tower4c = tk.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR,
+            tower4c = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR,
                                       kernel_size=5,
-                                      stride=1, activation='relu',
+                                      strides=1, activation='relu',
                                       padding='same')(tower4c)
 
             # output shape: batch_size , sentence_length, NB_CONV_FILTERS_CHAR
-            tower5c = tk.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR,
+            tower5c = tf.keras.layers.Conv1D(filters=NB_CONV_FILTERS_CHAR,
                                       kernel_size=1,
-                                      stride=1, activation='relu',
+                                      strides=1, activation='relu',
                                       padding='same')(char_embeddings)
 
             # output shape: batch_size , sentence_length, 5 x NB_CONV_FILTERS_CHAR
-            char_inception_out = tk.layers.Concatenate([tower1c, tower2c, tower3c, tower4c, tower5c], axis=-1)
+            char_inception_out = tf.keras.layers.concatenate([tower1c, tower2c, tower3c, tower4c, tower5c], axis=-1)
 
             # output shape: batch_size , sentence_length, 5 x NB_CONV_FILTERS_WORD + 5 x NB_CONV_FILTERS_CHAR
-            merged_embedding = tk.layers.Concatenate( [word_inception_out, char_inception_out] , axis = -1)
+            merged_embedding = tf.keras.layers.concatenate( [word_inception_out, char_inception_out] , axis = -1)
 
         else:
             # output shape: batch_size , sentence_length, WORD_EMBEDDING_DIM + CHAR_EMBEDDING_DIM /  CHAR_LSTM_SIZE
-            merged_embedding = tk.layers.Concatenate([word_embeddings, char_embeddings], axis = -1 )
+            merged_embedding = tf.keras.layers.Concatenate([word_embeddings, char_embeddings], axis = -1 )
 
 
         # add a biLSTM  layer
         # output shape: batch_size , sentence_length, 2xMERGED_LSTM_SIZE_
-        x = tk.layers.Bidirectional( tk.layers.LSTM (units = MERGED_LSTM_SIZE, dropout= DROPAUT_W_merged,
-                                                     recurrent_dropout=DROPAUT_U_merged ) )(merged_embedding)
+        x = tf.keras.layers.Bidirectional( tf.keras.layers.LSTM (units = MERGED_LSTM_SIZE, dropout= DROPAUT_W_merged,
+                                                     recurrent_dropout=DROPAUT_U_merged, return_sequences=True ) )(merged_embedding)
 
 
-        x = tk.layers.TimeDistributed(tk.layers.Dense (units =  MERGED_LSTM_SIZE//2,
+        x = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense (units =  MERGED_LSTM_SIZE//2,
                                                        activation='relu' )) (x)
 
-        x = tk.layers.TimeDistributed(tk.layers.Dense(units=NB_LABEL_KEYS))(x)
+        x = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(units=NB_LABEL_KEYS))(x)
+
+        DECODER = ('LSTM', (0.25,0.25)) # 'tanh_crf'  'crf' 'softmax'
+        if DECODER == 'softmax':
+            output = tf.keras.layers.TimeDistributed(
+                    tf.keras.layers.Dense( units= NB_LABEL_KEYS, activation='softmax'))(x)
+
+            lossFct = 'sparse_categorical_crossentropy'
+        elif DECODER == 'crf':
+            output = tf.keras.layers.TimeDistributed(
+                tf.keras.layers.Dense( units= NB_LABEL_KEYS, activation=None))(x)
+            crf = ChainCRF('_CRF')
+            output = crf(output)
+            lossFct = crf.sparse_loss
+        elif DECODER == 'tanh_crf':
+            output = tf.keras.layers.TimeDistributed(
+                tf.keras.layers.Dense(units=NB_LABEL_KEYS, activation='tanh'))(x)
+            crf = ChainCRF('tanh_CRF')
+            output = crf(output)
+            lossFct = crf.sparse_loss
+        #elif DECODER == 'tf_crf':
+        #    output = tf.keras.layers.TimeDistributed(
+        #        tf.keras.layers.Dense(units=NB_LABEL_KEYS, activation=None))(x)
+        #    log_likelihood, trans_params = tf.contrib.crf.crf_log_likelihood(
+        #        output, batch_labels, batch_sequence_lengths)
+        #    self.trans_params = trans_params  # need to evaluate it for decoding
+        #    self.loss = tf.reduce_mean(-log_likelihood)
+
+        elif DECODER[0] == 'LSTM':
+            size = DECODER[1]
+            output = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(size, return_sequences=True,
+                                                                dropout=DECODER[1][0],
+                                                                recurrent_dropout=DECODER[1][1]))(x)
 
 
-########################## FROM HERE OLD CODE
 
+
+    def add_placeholders(self):
+        """Define placeholders = entries to computational graph"""
         # shape = (batch size, max length of sentence in batch)
         self.word_ids = tf.placeholder(tf.int32, shape=[None, None],
                         name="word_ids")
